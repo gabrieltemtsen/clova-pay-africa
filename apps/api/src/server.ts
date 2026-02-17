@@ -7,6 +7,7 @@ import { payoutRouter } from "./routes/payout.js";
 import { webhookRouter } from "./routes/webhook.js";
 import { liquidityRouter } from "./routes/liquidity.js";
 import { settlementRouter } from "./routes/settlement.js";
+import { watcherRouter } from "./routes/watcher.js";
 import { ledger } from "./lib/ledger.js";
 import { requirePaidAccess } from "./middleware/access.js";
 
@@ -19,6 +20,7 @@ app.use(express.json({
 
 app.use(healthRouter);
 app.use(webhookRouter); // provider callback; never paid
+app.use(watcherRouter); // watcher callback; token-gated
 
 // Paid APIs (x402), with OWNER_API_KEY bypass for internal/admin calls.
 app.use(requirePaidAccess(process.env.X402_PRICE_QUOTE || "$0.001"), quoteRouter);

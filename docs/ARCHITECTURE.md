@@ -46,9 +46,11 @@ Responsibilities:
 - Current: Paystack
 - Planned: Flutterwave for more African corridors
 
-### Chain Watchers (next phase)
+### Chain Watchers
 - Detect and confirm inbound deposit transactions on Celo/Base/Stacks
-- Trigger settlement state transitions and payout release
+- Push confirmed deposits to `POST /v1/watchers/deposits` (token-gated)
+- Trigger idempotent settlement credit flow (dedupe by `txHash`)
+- Create fee ledger entries on first-seen settlement event
 
 ---
 
