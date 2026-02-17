@@ -43,6 +43,11 @@ Offramp infrastructure for African payouts:
 - `apps/api` – API service + provider adapters + ledger logic
 - `docs` – architecture, product notes, runbooks
 
+## Documentation
+- Architecture: `docs/ARCHITECTURE.md`
+- API reference: `docs/API_GUIDE.md`
+- Agent integration: `docs/AGENT_INTEGRATION.md`
+
 ## Quick Start
 ```bash
 cd apps/api
