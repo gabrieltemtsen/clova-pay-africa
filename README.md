@@ -22,6 +22,14 @@ Offramp infrastructure for African payouts:
 5. System triggers Paystack transfer to recipient bank
 6. Webhook updates final payout status
 
+## Current API (MVP+)
+- `GET /health`
+- `POST /v1/quotes`
+- `POST /v1/payouts` (supports recipientCode OR bank details)
+- `GET /v1/payouts`
+- `GET /v1/payouts/:payoutId`
+- `POST /v1/webhooks/paystack`
+
 ## Repo Layout
 - `apps/api` – API service + provider adapters + ledger logic
 - `docs` – architecture, product notes, runbooks
