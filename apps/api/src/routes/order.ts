@@ -4,8 +4,10 @@ import { z } from "zod";
 import { config } from "../lib/config.js";
 import { ledger, type OfframpOrder } from "../lib/ledger.js";
 import { makeQuote } from "../lib/quote.js";
+import { PaystackProvider } from "../providers/paystack.js";
 
 export const orderRouter = Router();
+const paystack = new PaystackProvider();
 
 const orderSchema = z.object({
     asset: z.enum(["cUSD_CELO", "USDC_BASE", "USDCX_STACKS"]),
@@ -53,6 +55,13 @@ orderRouter.post("/v1/orders", async (req, res) => {
     await ledger.putOrder(order);
 
     return res.json(order);
+});
+
+// ----- GET /v1/banks — discover payout banks ------
+orderRouter.get("/v1/banks", async (req, res) => {
+    const country = String(req.query.country || "nigeria");
+    const banks = await paystack.listBanks(country);
+    return res.json({ country, banks });
 });
 
 // ----- GET /v1/orders  —  list orders ------
