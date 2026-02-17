@@ -32,6 +32,23 @@ async function paystackRequest(path: string, method: "GET" | "POST", body?: unkn
 }
 
 export class PaystackProvider {
+  async listBanks(country = "nigeria"): Promise<Array<{ name: string; code: string }>> {
+    if (config.paystackMode !== "live") {
+      return [
+        { name: "Access Bank", code: "044" },
+        { name: "Guaranty Trust Bank", code: "058" },
+        { name: "United Bank For Africa", code: "033" },
+        { name: "Zenith Bank", code: "057" },
+        { name: "First Bank of Nigeria", code: "011" },
+      ];
+    }
+
+    const data = await paystackRequest(`/bank?country=${encodeURIComponent(country)}`, "GET");
+    const rows = Array.isArray(data?.data) ? data.data : [];
+    return rows
+      .map((r: any) => ({ name: String(r?.name || ""), code: String(r?.code || "") }))
+      .filter((r: { name: string; code: string }) => r.name && r.code);
+  }
   async createRecipient(input: PaystackRecipientInput): Promise<{ recipientCode: string }> {
     if (config.paystackMode !== "live") {
       return { recipientCode: `RCP_mock_${Date.now()}` };
