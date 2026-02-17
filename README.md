@@ -29,10 +29,13 @@ Offramp infrastructure for African payouts:
 - `GET /v1/payouts` (paid)
 - `GET /v1/payouts/:payoutId` (paid)
 - `POST /v1/webhooks/paystack` (public callback)
+- `POST /v1/watchers/deposits` (watcher token callback)
 - `POST /v1/liquidity/providers` (paid)
 - `GET /v1/liquidity/providers` (paid)
 - `POST /v1/liquidity/providers/:providerId/adjust` (paid)
 - `POST /v1/settlements/credited` (paid)
+- `GET /v1/settlements` (paid)
+- `GET /v1/ledger/entries` (paid)
 
 ## Access Control / Billing
 - Primary: **x402** via Thirdweb (`thirdweb/x402`) for agent-friendly pay-per-call access.

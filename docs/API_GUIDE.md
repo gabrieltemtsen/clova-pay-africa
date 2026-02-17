@@ -129,7 +129,11 @@ Request:
 ---
 
 ### `POST /v1/settlements/credited`
-Settlement acknowledgement scaffold (temporary endpoint before full watcher automation).
+Manual settlement credit endpoint (paid).
+
+Idempotency behavior:
+- Duplicate `txHash` submissions are deduplicated server-side.
+- Response includes `idempotent: true` when event already exists.
 
 Request:
 ```json
@@ -138,9 +142,26 @@ Request:
   "asset": "USDCX_STACKS",
   "amountCrypto": "50",
   "txHash": "0x...",
-  "confirmations": 3
+  "confirmations": 3,
+  "providerId": "lp_..."
 }
 ```
+
+### `POST /v1/watchers/deposits`
+Watcher callback endpoint (token-gated via `x-watcher-token`).
+
+Rules:
+- Requires confirmation threshold per asset (`MIN_CONFIRMATIONS_*`).
+- Uses same idempotent settlement logic (dedupe by `txHash`).
+- On new settlement, fee ledger entries are created:
+  - `platform_fee`
+  - `lp_fee` (when `providerId` provided)
+
+### `GET /v1/settlements`
+List credited settlements.
+
+### `GET /v1/ledger/entries`
+List fee ledger entries.
 
 ---
 

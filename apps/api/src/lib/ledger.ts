@@ -26,9 +26,57 @@ export type LiquidityProvider = {
   updatedAt: number;
 };
 
-class MemoryLedger {
+export type SettlementRecord = {
+  settlementId: string;
+  quoteId: string;
+  asset: "cUSD_CELO" | "USDC_BASE" | "USDCX_STACKS";
+  amountCrypto: string;
+  txHash: string;
+  confirmations: number;
+  source: "watcher" | "manual";
+  status: "credited";
+  createdAt: number;
+  updatedAt: number;
+};
+
+export type LedgerEntry = {
+  entryId: string;
+  quoteId: string;
+  payoutId?: string;
+  providerId?: string;
+  kind: "platform_fee" | "lp_fee";
+  currency: "NGN";
+  amountKobo: number;
+  memo?: string;
+  createdAt: number;
+};
+
+type Ledger = {
+  init(): Promise<void>;
+  putPayout(p: PayoutRecord): Promise<void>;
+  getPayout(payoutId: string): Promise<PayoutRecord | undefined>;
+  updatePayout(payoutId: string, patch: Partial<PayoutRecord>): Promise<PayoutRecord | undefined>;
+  findPayoutByTransferRef(transferRef: string): Promise<PayoutRecord | undefined>;
+  findPayoutByQuoteId(quoteId: string): Promise<PayoutRecord | undefined>;
+  listPayouts(): Promise<PayoutRecord[]>;
+
+  upsertProvider(p: LiquidityProvider): Promise<void>;
+  getProvider(providerId: string): Promise<LiquidityProvider | undefined>;
+  listProviders(): Promise<LiquidityProvider[]>;
+  adjustProviderBalance(providerId: string, deltaKobo: number): Promise<LiquidityProvider | undefined>;
+
+  createSettlementIfAbsent(s: SettlementRecord): Promise<{ settlement: SettlementRecord; inserted: boolean }>;
+  listSettlements(limit?: number): Promise<SettlementRecord[]>;
+
+  addLedgerEntry(e: LedgerEntry): Promise<void>;
+  listLedgerEntries(limit?: number): Promise<LedgerEntry[]>;
+};
+
+class MemoryLedger implements Ledger {
   private payouts = new Map<string, PayoutRecord>();
   private providers = new Map<string, LiquidityProvider>();
+  private settlements = new Map<string, SettlementRecord>(); // key: txHash
+  private entries: LedgerEntry[] = [];
 
   async init() {}
 
@@ -42,6 +90,9 @@ class MemoryLedger {
   async findPayoutByTransferRef(transferRef: string) {
     return Array.from(this.payouts.values()).find((p) => p.transferRef === transferRef || p.transferCode === transferRef);
   }
+  async findPayoutByQuoteId(quoteId: string) {
+    return Array.from(this.payouts.values()).find((p) => p.quoteId === quoteId);
+  }
   async listPayouts() { return Array.from(this.payouts.values()).sort((a, b) => b.createdAt - a.createdAt); }
 
   async upsertProvider(p: LiquidityProvider) { this.providers.set(p.providerId, p); }
@@ -53,9 +104,25 @@ class MemoryLedger {
     this.providers.set(providerId, next);
     return next;
   }
+
+  async createSettlementIfAbsent(s: SettlementRecord) {
+    const existing = this.settlements.get(s.txHash.toLowerCase());
+    if (existing) return { settlement: existing, inserted: false };
+    const normalized = { ...s, txHash: s.txHash.toLowerCase() };
+    this.settlements.set(normalized.txHash, normalized);
+    return { settlement: normalized, inserted: true };
+  }
+  async listSettlements(limit = 200) {
+    return Array.from(this.settlements.values())
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .slice(0, limit);
+  }
+
+  async addLedgerEntry(e: LedgerEntry) { this.entries.unshift(e); }
+  async listLedgerEntries(limit = 200) { return this.entries.slice(0, limit); }
 }
 
-class PostgresLedger {
+class PostgresLedger implements Ledger {
   private pool: pg.Pool;
   constructor(databaseUrl: string) {
     this.pool = new pg.Pool({ connectionString: databaseUrl, ssl: { rejectUnauthorized: false } });
@@ -78,6 +145,8 @@ class PostgresLedger {
         created_at bigint not null,
         updated_at bigint not null
       );
+      create index if not exists idx_payout_quote_id on payouts(quote_id);
+
       create table if not exists liquidity_providers (
         provider_id text primary key,
         name text not null,
@@ -86,6 +155,31 @@ class PostgresLedger {
         fee_bps int not null,
         created_at bigint not null,
         updated_at bigint not null
+      );
+
+      create table if not exists settlements (
+        settlement_id text primary key,
+        quote_id text not null,
+        asset text not null,
+        amount_crypto text not null,
+        tx_hash text not null unique,
+        confirmations int not null,
+        source text not null,
+        status text not null,
+        created_at bigint not null,
+        updated_at bigint not null
+      );
+
+      create table if not exists ledger_entries (
+        entry_id text primary key,
+        quote_id text not null,
+        payout_id text,
+        provider_id text,
+        kind text not null,
+        currency text not null,
+        amount_kobo bigint not null,
+        memo text,
+        created_at bigint not null
       );
     `);
   }
@@ -104,6 +198,35 @@ class PostgresLedger {
       providerId: r.provider_id, name: r.name, currency: r.currency,
       balanceKobo: Number(r.balance_kobo), feeBps: Number(r.fee_bps),
       createdAt: Number(r.created_at), updatedAt: Number(r.updated_at),
+    };
+  }
+
+  rowToSettlement(r: any): SettlementRecord {
+    return {
+      settlementId: r.settlement_id,
+      quoteId: r.quote_id,
+      asset: r.asset,
+      amountCrypto: r.amount_crypto,
+      txHash: r.tx_hash,
+      confirmations: Number(r.confirmations),
+      source: r.source,
+      status: r.status,
+      createdAt: Number(r.created_at),
+      updatedAt: Number(r.updated_at),
+    };
+  }
+
+  rowToEntry(r: any): LedgerEntry {
+    return {
+      entryId: r.entry_id,
+      quoteId: r.quote_id,
+      payoutId: r.payout_id || undefined,
+      providerId: r.provider_id || undefined,
+      kind: r.kind,
+      currency: r.currency,
+      amountKobo: Number(r.amount_kobo),
+      memo: r.memo || undefined,
+      createdAt: Number(r.created_at),
     };
   }
 
@@ -129,6 +252,10 @@ class PostgresLedger {
   }
   async findPayoutByTransferRef(transferRef: string) {
     const r = await this.pool.query(`select * from payouts where transfer_ref = $1 or transfer_code = $1 limit 1`, [transferRef]);
+    return r.rows[0] ? this.rowToPayout(r.rows[0]) : undefined;
+  }
+  async findPayoutByQuoteId(quoteId: string) {
+    const r = await this.pool.query(`select * from payouts where quote_id = $1 order by created_at desc limit 1`, [quoteId]);
     return r.rows[0] ? this.rowToPayout(r.rows[0]) : undefined;
   }
   async listPayouts() {
@@ -158,7 +285,39 @@ class PostgresLedger {
     await this.upsertProvider(next);
     return next;
   }
+
+  async createSettlementIfAbsent(s: SettlementRecord) {
+    const normalizedTxHash = s.txHash.toLowerCase();
+    const existing = await this.pool.query(`select * from settlements where tx_hash = $1 limit 1`, [normalizedTxHash]);
+    if (existing.rows[0]) return { settlement: this.rowToSettlement(existing.rows[0]), inserted: false };
+
+    const next = { ...s, txHash: normalizedTxHash };
+    await this.pool.query(
+      `insert into settlements (settlement_id,quote_id,asset,amount_crypto,tx_hash,confirmations,source,status,created_at,updated_at)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+      [next.settlementId, next.quoteId, next.asset, next.amountCrypto, next.txHash, next.confirmations, next.source, next.status, next.createdAt, next.updatedAt],
+    );
+    return { settlement: next, inserted: true };
+  }
+
+  async listSettlements(limit = 200) {
+    const r = await this.pool.query(`select * from settlements order by created_at desc limit $1`, [limit]);
+    return r.rows.map((x: any) => this.rowToSettlement(x));
+  }
+
+  async addLedgerEntry(e: LedgerEntry) {
+    await this.pool.query(
+      `insert into ledger_entries (entry_id,quote_id,payout_id,provider_id,kind,currency,amount_kobo,memo,created_at)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+      [e.entryId, e.quoteId, e.payoutId || null, e.providerId || null, e.kind, e.currency, e.amountKobo, e.memo || null, e.createdAt],
+    );
+  }
+
+  async listLedgerEntries(limit = 200) {
+    const r = await this.pool.query(`select * from ledger_entries order by created_at desc limit $1`, [limit]);
+    return r.rows.map((x: any) => this.rowToEntry(x));
+  }
 }
 
 const databaseUrl = process.env.DATABASE_URL;
-export const ledger = databaseUrl ? new PostgresLedger(databaseUrl) : new MemoryLedger();
+export const ledger: Ledger = databaseUrl ? new PostgresLedger(databaseUrl) : new MemoryLedger();
