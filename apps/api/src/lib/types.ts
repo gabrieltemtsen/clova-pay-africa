@@ -15,4 +15,10 @@ export type QuoteResponse = {
   feeNgn: string;
   receiveNgn: string;
   expiresAt: number;
+  _rateInfo?: {
+    marketRate: string;
+    offrampRate: string;
+    marginPct: number;
+    spreadProfit: string;
+  };
 };

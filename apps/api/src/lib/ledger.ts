@@ -51,6 +51,29 @@ export type LedgerEntry = {
   createdAt: number;
 };
 
+export type OfframpOrder = {
+  orderId: string;
+  asset: "cUSD_CELO" | "USDC_BASE" | "USDCX_STACKS";
+  amountCrypto: string;
+  rate: string;
+  feeBps: number;
+  feeNgn: string;
+  receiveNgn: string;
+  depositAddress: string;
+  recipientName: string;
+  recipientAccount: string;
+  recipientBankCode: string;
+  recipientCode?: string;
+  status: "awaiting_deposit" | "confirming" | "paid_out" | "settled" | "failed" | "expired";
+  payoutId?: string;
+  transferCode?: string;
+  txHash?: string;
+  failureReason?: string;
+  expiresAt: number;
+  createdAt: number;
+  updatedAt: number;
+};
+
 type Ledger = {
   init(): Promise<void>;
   putPayout(p: PayoutRecord): Promise<void>;
@@ -70,6 +93,11 @@ type Ledger = {
 
   addLedgerEntry(e: LedgerEntry): Promise<void>;
   listLedgerEntries(limit?: number): Promise<LedgerEntry[]>;
+
+  putOrder(o: OfframpOrder): Promise<void>;
+  getOrder(orderId: string): Promise<OfframpOrder | undefined>;
+  updateOrder(orderId: string, patch: Partial<OfframpOrder>): Promise<OfframpOrder | undefined>;
+  listOrders(limit?: number): Promise<OfframpOrder[]>;
 };
 
 class MemoryLedger implements Ledger {
@@ -77,8 +105,9 @@ class MemoryLedger implements Ledger {
   private providers = new Map<string, LiquidityProvider>();
   private settlements = new Map<string, SettlementRecord>(); // key: txHash
   private entries: LedgerEntry[] = [];
+  private orders = new Map<string, OfframpOrder>();
 
-  async init() {}
+  async init() { }
 
   async putPayout(p: PayoutRecord) { this.payouts.set(p.payoutId, p); }
   async getPayout(payoutId: string) { return this.payouts.get(payoutId); }
@@ -120,6 +149,17 @@ class MemoryLedger implements Ledger {
 
   async addLedgerEntry(e: LedgerEntry) { this.entries.unshift(e); }
   async listLedgerEntries(limit = 200) { return this.entries.slice(0, limit); }
+
+  async putOrder(o: OfframpOrder) { this.orders.set(o.orderId, o); }
+  async getOrder(orderId: string) { return this.orders.get(orderId); }
+  async updateOrder(orderId: string, patch: Partial<OfframpOrder>) {
+    const o = this.orders.get(orderId); if (!o) return undefined;
+    const next = { ...o, ...patch, updatedAt: Date.now() };
+    this.orders.set(orderId, next); return next;
+  }
+  async listOrders(limit = 200) {
+    return Array.from(this.orders.values()).sort((a, b) => b.createdAt - a.createdAt).slice(0, limit);
+  }
 }
 
 class PostgresLedger implements Ledger {
@@ -181,6 +221,30 @@ class PostgresLedger implements Ledger {
         memo text,
         created_at bigint not null
       );
+
+      create table if not exists offramp_orders (
+        order_id text primary key,
+        asset text not null,
+        amount_crypto text not null,
+        rate text not null,
+        fee_bps int not null,
+        fee_ngn text not null,
+        receive_ngn text not null,
+        deposit_address text not null,
+        recipient_name text not null,
+        recipient_account text not null,
+        recipient_bank_code text not null,
+        recipient_code text,
+        status text not null,
+        payout_id text,
+        transfer_code text,
+        tx_hash text,
+        failure_reason text,
+        expires_at bigint not null,
+        created_at bigint not null,
+        updated_at bigint not null
+      );
+      create index if not exists idx_order_status on offramp_orders(status);
     `);
   }
 
@@ -204,29 +268,32 @@ class PostgresLedger implements Ledger {
   rowToSettlement(r: any): SettlementRecord {
     return {
       settlementId: r.settlement_id,
-      quoteId: r.quote_id,
-      asset: r.asset,
-      amountCrypto: r.amount_crypto,
-      txHash: r.tx_hash,
-      confirmations: Number(r.confirmations),
-      source: r.source,
-      status: r.status,
-      createdAt: Number(r.created_at),
-      updatedAt: Number(r.updated_at),
+      quoteId: r.quote_id, asset: r.asset, amountCrypto: r.amount_crypto,
+      txHash: r.tx_hash, confirmations: Number(r.confirmations),
+      source: r.source, status: r.status,
+      createdAt: Number(r.created_at), updatedAt: Number(r.updated_at),
     };
   }
 
   rowToEntry(r: any): LedgerEntry {
     return {
-      entryId: r.entry_id,
-      quoteId: r.quote_id,
-      payoutId: r.payout_id || undefined,
-      providerId: r.provider_id || undefined,
-      kind: r.kind,
-      currency: r.currency,
-      amountKobo: Number(r.amount_kobo),
-      memo: r.memo || undefined,
-      createdAt: Number(r.created_at),
+      entryId: r.entry_id, quoteId: r.quote_id,
+      payoutId: r.payout_id || undefined, providerId: r.provider_id || undefined,
+      kind: r.kind, currency: r.currency, amountKobo: Number(r.amount_kobo),
+      memo: r.memo || undefined, createdAt: Number(r.created_at),
+    };
+  }
+
+  rowToOrder(r: any): OfframpOrder {
+    return {
+      orderId: r.order_id, asset: r.asset, amountCrypto: r.amount_crypto,
+      rate: r.rate, feeBps: Number(r.fee_bps), feeNgn: r.fee_ngn, receiveNgn: r.receive_ngn,
+      depositAddress: r.deposit_address, recipientName: r.recipient_name,
+      recipientAccount: r.recipient_account, recipientBankCode: r.recipient_bank_code,
+      recipientCode: r.recipient_code || undefined, status: r.status,
+      payoutId: r.payout_id || undefined, transferCode: r.transfer_code || undefined,
+      txHash: r.tx_hash || undefined, failureReason: r.failure_reason || undefined,
+      expiresAt: Number(r.expires_at), createdAt: Number(r.created_at), updatedAt: Number(r.updated_at),
     };
   }
 
@@ -316,6 +383,37 @@ class PostgresLedger implements Ledger {
   async listLedgerEntries(limit = 200) {
     const r = await this.pool.query(`select * from ledger_entries order by created_at desc limit $1`, [limit]);
     return r.rows.map((x: any) => this.rowToEntry(x));
+  }
+
+  async putOrder(o: OfframpOrder) {
+    await this.pool.query(
+      `insert into offramp_orders (order_id,asset,amount_crypto,rate,fee_bps,fee_ngn,receive_ngn,deposit_address,
+       recipient_name,recipient_account,recipient_bank_code,recipient_code,status,payout_id,transfer_code,tx_hash,failure_reason,expires_at,created_at,updated_at)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+       on conflict (order_id) do update set status=excluded.status,recipient_code=excluded.recipient_code,payout_id=excluded.payout_id,
+       transfer_code=excluded.transfer_code,tx_hash=excluded.tx_hash,failure_reason=excluded.failure_reason,updated_at=excluded.updated_at`,
+      [o.orderId, o.asset, o.amountCrypto, o.rate, o.feeBps, o.feeNgn, o.receiveNgn, o.depositAddress,
+      o.recipientName, o.recipientAccount, o.recipientBankCode, o.recipientCode || null, o.status,
+      o.payoutId || null, o.transferCode || null, o.txHash || null, o.failureReason || null,
+      o.expiresAt, o.createdAt, o.updatedAt],
+    );
+  }
+
+  async getOrder(orderId: string) {
+    const r = await this.pool.query(`select * from offramp_orders where order_id = $1`, [orderId]);
+    return r.rows[0] ? this.rowToOrder(r.rows[0]) : undefined;
+  }
+
+  async updateOrder(orderId: string, patch: Partial<OfframpOrder>) {
+    const current = await this.getOrder(orderId); if (!current) return undefined;
+    const next = { ...current, ...patch, updatedAt: Date.now() };
+    await this.putOrder(next);
+    return next;
+  }
+
+  async listOrders(limit = 200) {
+    const r = await this.pool.query(`select * from offramp_orders order by created_at desc limit $1`, [limit]);
+    return r.rows.map((x: any) => this.rowToOrder(x));
   }
 }
 

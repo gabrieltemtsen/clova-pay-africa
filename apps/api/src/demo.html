@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Clova Pay — Offramp Demo</title>
+  <style>
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: #0a0a0f;
+      color: #e4e4e7;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 640px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem;
+    }
+
+    h1 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, #22c55e, #06b6d4);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: .3rem;
+    }
+
+    .subtitle {
+      color: #71717a;
+      font-size: .85rem;
+      margin-bottom: 2rem;
+    }
+
+    .card {
+      background: #18181b;
+      border: 1px solid #27272a;
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .card.active {
+      border-color: #22c55e55;
+    }
+
+    .card.done {
+      border-color: #22c55e33;
+      opacity: .7;
+    }
+
+    .step-label {
+      font-size: .7rem;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: #22c55e;
+      font-weight: 600;
+      margin-bottom: .5rem;
+    }
+
+    .card h2 {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+    }
+
+    label {
+      display: block;
+      font-size: .8rem;
+      color: #a1a1aa;
+      margin-bottom: .3rem;
+      margin-top: .8rem;
+    }
+
+    input,
+    select {
+      width: 100%;
+      padding: .6rem .8rem;
+      background: #09090b;
+      border: 1px solid #3f3f46;
+      border-radius: 8px;
+      color: #e4e4e7;
+      font-size: .9rem;
+    }
+
+    input:focus,
+    select:focus {
+      outline: none;
+      border-color: #22c55e;
+    }
+
+    button {
+      width: 100%;
+      padding: .7rem;
+      background: linear-gradient(135deg, #22c55e, #16a34a);
+      color: #fff;
+      font-weight: 600;
+      font-size: .9rem;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      margin-top: 1rem;
+    }
+
+    button:hover {
+      opacity: .9;
+    }
+
+    button:disabled {
+      opacity: .4;
+      cursor: not-allowed;
+    }
+
+    .result {
+      background: #09090b;
+      border: 1px solid #3f3f46;
+      border-radius: 8px;
+      padding: 1rem;
+      margin-top: .8rem;
+      font-size: .8rem;
+    }
+
+    .result pre {
+      white-space: pre-wrap;
+      word-break: break-all;
+      color: #a1a1aa;
+      font-size: .75rem;
+    }
+
+    .warn {
+      background: #451a0333;
+      border: 1px solid #dc262633;
+      color: #fca5a5;
+      padding: .8rem;
+      border-radius: 8px;
+      font-size: .8rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      padding: .35rem 0;
+      font-size: .85rem;
+      border-bottom: 1px solid #27272a;
+    }
+
+    .info-row:last-child {
+      border: none;
+    }
+
+    .info-row .label {
+      color: #71717a;
+    }
+
+    .info-row .val {
+      color: #e4e4e7;
+      font-weight: 500;
+      font-family: monospace;
+    }
+
+    .info-row .val.green {
+      color: #22c55e;
+    }
+
+    .deposit-addr {
+      background: #09090b;
+      border: 1px solid #22c55e44;
+      border-radius: 8px;
+      padding: .8rem;
+      margin-top: .5rem;
+      text-align: center;
+      font-family: monospace;
+      font-size: .78rem;
+      color: #22c55e;
+      word-break: break-all;
+      cursor: pointer;
+    }
+
+    .status-badge {
+      display: inline-block;
+      padding: .15rem .5rem;
+      border-radius: 4px;
+      font-size: .7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .status-badge.awaiting {
+      background: #854d0e33;
+      color: #fbbf24;
+    }
+
+    .status-badge.paid_out {
+      background: #16653633;
+      color: #4ade80;
+    }
+
+    .status-badge.settled {
+      background: #22c55e33;
+      color: #22c55e;
+    }
+
+    .status-badge.failed {
+      background: #dc262633;
+      color: #f87171;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    #logPanel {
+      background: #09090b;
+      border: 1px solid #27272a;
+      border-radius: 8px;
+      padding: .8rem;
+      margin-top: 1.5rem;
+      max-height: 200px;
+      overflow-y: auto;
+      font-family: monospace;
+      font-size: .7rem;
+      color: #52525b;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <h1>⚡ Clova Pay Offramp</h1>
+    <p class="subtitle">Crypto → Fiat in 3 steps. No intermediary. No delays.</p>
+
+    <div class="warn">
+      🔒 <strong>Safe flow:</strong> Payouts only fire <em>after</em> your crypto deposit is confirmed. No money leaves
+      until you send stablecoins.
+    </div>
+
+    <!-- STEP 1: Create Order -->
+    <div class="card active" id="step1">
+      <div class="step-label">Step 1</div>
+      <h2>Create Offramp Order</h2>
+
+      <label>Stablecoin</label>
+      <select id="asset">
+        <option value="cUSD_CELO">cUSD — Celo</option>
+        <option value="USDC_BASE">USDC — Base</option>
+      </select>
+
+      <label>Amount (crypto)</label>
+      <input id="amount" type="number" value="1" step="0.01" min="0.01" />
+
+      <label>Recipient Name</label>
+      <input id="recipientName" type="text" placeholder="Jane Doe" />
+
+      <label>Account Number</label>
+      <input id="recipientAccount" type="text" placeholder="0123456789" maxlength="10" />
+
+      <label>Bank</label>
+      <select id="bankCode">
+        <option value="044">Access Bank (044)</option>
+        <option value="011">First Bank (011)</option>
+        <option value="058">GTBank (058)</option>
+        <option value="033">UBA (033)</option>
+        <option value="057" selected>Zenith Bank (057)</option>
+      </select>
+
+      <button id="btnCreateOrder" onclick="createOrder()">Create Order</button>
+    </div>
+
+    <!-- STEP 2: Deposit Crypto (shown after order) -->
+    <div class="card hidden" id="step2">
+      <div class="step-label">Step 2</div>
+      <h2>Send Crypto to Deposit Address</h2>
+      <div id="orderSummary"></div>
+      <div class="deposit-addr" id="depositAddr" onclick="navigator.clipboard.writeText(this.textContent)"
+        title="Click to copy"></div>
+      <p style="text-align:center; font-size:.7rem; color:#52525b; margin-top:.3rem;">Click address to copy</p>
+    </div>
+
+    <!-- STEP 3: Confirm Deposit -->
+    <div class="card hidden" id="step3">
+      <div class="step-label">Step 3</div>
+      <h2>Confirm Your Deposit</h2>
+      <p style="font-size:.8rem; color:#a1a1aa; margin-bottom:.5rem;">Paste the transaction hash after sending crypto:
+      </p>
+      <input id="txHash" type="text" placeholder="0xabc123..." />
+      <button id="btnConfirm" onclick="confirmDeposit()">Confirm Deposit → Trigger Fiat Payout</button>
+    </div>
+
+    <!-- STEP 4: Result -->
+    <div class="card hidden" id="step4">
+      <div class="step-label">Done</div>
+      <h2>🎉 Offramp Complete</h2>
+      <div id="resultSummary"></div>
+    </div>
+
+    <div id="logPanel"></div>
+  </div>
+
+  <script>
+    const API = '';
+    const KEY = 'himom';
+    let currentOrder = null;
+
+    function log(msg) {
+      const el = document.getElementById('logPanel');
+      const t = new Date().toLocaleTimeString();
+      el.textContent += `[${t}] ${msg}\n`;
+      el.scrollTop = el.scrollHeight;
+    }
+
+    async function api(method, path, body) {
+      log(`→ ${method} ${path}`);
+      const opts = { method, headers: { 'Content-Type': 'application/json', 'x-api-key': KEY } };
+      if (body) opts.body = JSON.stringify(body);
+      const r = await fetch(`${API}${path}`, opts);
+      const data = await r.json();
+      log(`← ${r.status} ${JSON.stringify(data).substring(0, 120)}`);
+      return data;
+    }
+
+    async function createOrder() {
+      const btn = document.getElementById('btnCreateOrder');
+      btn.disabled = true; btn.textContent = 'Creating...';
+
+      const data = await api('POST', '/v1/orders', {
+        asset: document.getElementById('asset').value,
+        amountCrypto: document.getElementById('amount').value,
+        recipient: {
+          accountName: document.getElementById('recipientName').value,
+          accountNumber: document.getElementById('recipientAccount').value,
+          bankCode: document.getElementById('bankCode').value,
+        },
+      });
+
+      if (data.error) {
+        btn.disabled = false; btn.textContent = 'Create Order';
+        alert('Error: ' + JSON.stringify(data.error));
+        return;
+      }
+
+      currentOrder = data;
+
+      // Show order summary
+      document.getElementById('orderSummary').innerHTML = `
+        <div class="info-row"><span class="label">Order ID</span><span class="val">${data.orderId.substring(0, 20)}...</span></div>
+        <div class="info-row"><span class="label">Send</span><span class="val green">${data.amountCrypto} ${data.asset.split('_')[0]}</span></div>
+        <div class="info-row"><span class="label">Rate</span><span class="val">₦${Number(data.rate).toLocaleString()}/USD</span></div>
+        <div class="info-row"><span class="label">Fee</span><span class="val">₦${data.feeNgn}</span></div>
+        <div class="info-row"><span class="label">Bank receives</span><span class="val green">₦${Number(data.receiveNgn).toLocaleString()}</span></div>
+        <div class="info-row"><span class="label">Status</span><span class="status-badge awaiting">${data.status}</span></div>
+      `;
+      document.getElementById('depositAddr').textContent = data.depositAddress;
+
+      document.getElementById('step1').classList.add('done');
+      document.getElementById('step2').classList.remove('hidden');
+      document.getElementById('step2').classList.add('active');
+      document.getElementById('step3').classList.remove('hidden');
+      document.getElementById('step3').classList.add('active');
+
+      log(`✅ Order created: ${data.orderId}`);
+      log(`📍 Deposit ${data.amountCrypto} ${data.asset} to ${data.depositAddress}`);
+      log(`⏳ Expires in 30 minutes`);
+    }
+
+    async function confirmDeposit() {
+      if (!currentOrder) return;
+      const btn = document.getElementById('btnConfirm');
+      const txHash = document.getElementById('txHash').value.trim();
+      if (!txHash) { alert('Enter a transaction hash'); return; }
+
+      btn.disabled = true; btn.textContent = 'Processing payout...';
+
+      const result = await api('POST', '/v1/settlements/credited', {
+        orderId: currentOrder.orderId,
+        asset: currentOrder.asset,
+        amountCrypto: currentOrder.amountCrypto,
+        txHash,
+        confirmations: 1,
+      });
+
+      // Show result
+      const status = result.status || 'unknown';
+      const badgeClass = status === 'paid_out' ? 'paid_out' : status === 'settled' ? 'settled' : 'failed';
+
+      document.getElementById('resultSummary').innerHTML = `
+        <div class="info-row"><span class="label">Order</span><span class="val">${currentOrder.orderId.substring(0, 20)}...</span></div>
+        <div class="info-row"><span class="label">Tx Hash</span><span class="val">${txHash.substring(0, 24)}...</span></div>
+        <div class="info-row"><span class="label">Payout ID</span><span class="val">${result.payoutId || 'N/A'}</span></div>
+        <div class="info-row"><span class="label">Transfer</span><span class="val">${result.transferCode || 'N/A'}</span></div>
+        <div class="info-row"><span class="label">Status</span><span class="status-badge ${badgeClass}">${status}</span></div>
+        ${result.fees ? `<div class="info-row"><span class="label">Platform fee</span><span class="val">₦${(result.fees.platformFeeKobo / 100).toFixed(2)}</span></div>` : ''}
+        ${result.error ? `<div class="info-row"><span class="label">Error</span><span class="val" style="color:#f87171">${result.error}</span></div>` : ''}
+      `;
+
+      document.getElementById('step2').classList.add('done');
+      document.getElementById('step3').classList.add('done');
+      document.getElementById('step4').classList.remove('hidden');
+      document.getElementById('step4').classList.add('active');
+
+      if (status === 'paid_out') {
+        log(`🎉 Fiat payout triggered! Transfer: ${result.transferCode}`);
+        log(`💰 ₦${currentOrder.receiveNgn} → ${currentOrder.recipientName}'s bank`);
+      } else {
+        log(`⚠️ Status: ${status} — ${result.error || ''}`);
+      }
+    }
+  </script>
+</body>
+
+</html>

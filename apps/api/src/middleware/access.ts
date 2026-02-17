@@ -63,7 +63,15 @@ export function requirePaidAccess(price: string) {
     Object.entries(result.responseHeaders).forEach(([k, v]) => res.setHeader(k, String(v)));
 
     if (result.status !== 200) {
-      return res.status(result.status).json(result.responseBody);
+      const body =
+        result.responseBody && Object.keys(result.responseBody).length > 0
+          ? result.responseBody
+          : {
+              error: "payment_required",
+              status: result.status,
+              hint: "Include x-api-key header (owner) or x402 payment header to access this endpoint",
+            };
+      return res.status(result.status).json(body);
     }
 
     const receiptHeader = result.responseHeaders["x-payment-response"] || result.responseHeaders["x-payment-receipt-id"];
