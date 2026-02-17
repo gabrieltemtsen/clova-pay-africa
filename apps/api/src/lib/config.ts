@@ -2,11 +2,22 @@ export const config = {
   port: Number(process.env.PORT || 8787),
   defaultFeeBps: Number(process.env.DEFAULT_FEE_BPS || 150),
   defaultNgnRate: Number(process.env.DEFAULT_NGN_RATE || 1500),
+  rateMarginPct: Number(process.env.RATE_MARGIN_PCT || 3), // FX spread profit %
   watcherAuthToken: process.env.WATCHER_AUTH_TOKEN || "",
   minConfirmations: {
     cUSD_CELO: Number(process.env.MIN_CONFIRMATIONS_CUSD_CELO || 1),
     USDC_BASE: Number(process.env.MIN_CONFIRMATIONS_USDC_BASE || 1),
     USDCX_STACKS: Number(process.env.MIN_CONFIRMATIONS_USDCX_STACKS || 1),
+  },
+  depositWallets: {
+    cUSD_CELO: process.env.DEPOSIT_WALLET_CELO || process.env.X402_SERVER_WALLET || "",
+    USDC_BASE: process.env.DEPOSIT_WALLET_BASE || process.env.X402_SERVER_WALLET || "",
+    USDCX_STACKS: process.env.DEPOSIT_WALLET_STACKS || "",
+  },
+  orderExpiryMs: Number(process.env.ORDER_EXPIRY_MS || 30 * 60 * 1000), // 30 min
+  rpcUrls: {
+    celo: process.env.RPC_URL_CELO || "https://forno.celo.org",
+    base: process.env.RPC_URL_BASE || "https://mainnet.base.org",
   },
   paystackMode: (process.env.PAYSTACK_MODE || "mock").toLowerCase(),
   paystackBaseUrl: process.env.PAYSTACK_BASE_URL || "https://api.paystack.co",

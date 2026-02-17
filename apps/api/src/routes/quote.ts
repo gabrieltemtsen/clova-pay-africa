@@ -10,8 +10,8 @@ const quoteSchema = z.object({
   destinationCurrency: z.literal("NGN"),
 });
 
-quoteRouter.post("/v1/quotes", (req, res) => {
+quoteRouter.post("/v1/quotes", async (req, res) => {
   const parsed = quoteSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
-  return res.json(makeQuote(parsed.data));
+  return res.json(await makeQuote(parsed.data));
 });

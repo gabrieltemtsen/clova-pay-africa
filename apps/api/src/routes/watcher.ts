@@ -6,7 +6,8 @@ import { processCredited } from "../lib/settlementEngine.js";
 export const watcherRouter = Router();
 
 const depositSchema = z.object({
-  quoteId: z.string(),
+  quoteId: z.string().optional(),
+  orderId: z.string().optional(),
   asset: z.enum(["cUSD_CELO", "USDC_BASE", "USDCX_STACKS"]),
   amountCrypto: z.string(),
   txHash: z.string(),
@@ -22,6 +23,10 @@ watcherRouter.post("/v1/watchers/deposits", async (req, res) => {
 
   const parsed = depositSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  if (!parsed.data.quoteId && !parsed.data.orderId) {
+    return res.status(400).json({ error: "quoteId_or_orderId_required" });
+  }
 
   const min = config.minConfirmations[parsed.data.asset];
   if (parsed.data.confirmations < min) {
