@@ -29,6 +29,10 @@ Offramp infrastructure for African payouts:
 - `GET /v1/payouts`
 - `GET /v1/payouts/:payoutId`
 - `POST /v1/webhooks/paystack`
+- `POST /v1/liquidity/providers`
+- `GET /v1/liquidity/providers`
+- `POST /v1/liquidity/providers/:providerId/adjust`
+- `POST /v1/settlements/credited`
 
 ## Repo Layout
 - `apps/api` – API service + provider adapters + ledger logic
