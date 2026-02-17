@@ -8,6 +8,7 @@ import { webhookRouter } from "./routes/webhook.js";
 import { liquidityRouter } from "./routes/liquidity.js";
 import { settlementRouter } from "./routes/settlement.js";
 import { ledger } from "./lib/ledger.js";
+import { requirePaidAccess } from "./middleware/access.js";
 
 const app = express();
 app.use(express.json({
@@ -17,11 +18,13 @@ app.use(express.json({
 }));
 
 app.use(healthRouter);
-app.use(quoteRouter);
-app.use(payoutRouter);
-app.use(webhookRouter);
-app.use(liquidityRouter);
-app.use(settlementRouter);
+app.use(webhookRouter); // provider callback; never paid
+
+// Paid APIs (x402), with OWNER_API_KEY bypass for internal/admin calls.
+app.use(requirePaidAccess(process.env.X402_PRICE_QUOTE || "$0.001"), quoteRouter);
+app.use(requirePaidAccess(process.env.X402_PRICE_PAYOUT || "$0.02"), payoutRouter);
+app.use(requirePaidAccess(process.env.X402_PRICE_LIQUIDITY || "$0.005"), liquidityRouter);
+app.use(requirePaidAccess(process.env.X402_PRICE_SETTLEMENT || "$0.005"), settlementRouter);
 
 ledger.init().then(() => {
   app.listen(config.port, () => {

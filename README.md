@@ -23,16 +23,21 @@ Offramp infrastructure for African payouts:
 6. Webhook updates final payout status
 
 ## Current API (MVP+)
-- `GET /health`
-- `POST /v1/quotes`
-- `POST /v1/payouts` (supports recipientCode OR bank details)
-- `GET /v1/payouts`
-- `GET /v1/payouts/:payoutId`
-- `POST /v1/webhooks/paystack`
-- `POST /v1/liquidity/providers`
-- `GET /v1/liquidity/providers`
-- `POST /v1/liquidity/providers/:providerId/adjust`
-- `POST /v1/settlements/credited`
+- `GET /health` (public)
+- `POST /v1/quotes` (paid)
+- `POST /v1/payouts` (paid; supports recipientCode OR bank details)
+- `GET /v1/payouts` (paid)
+- `GET /v1/payouts/:payoutId` (paid)
+- `POST /v1/webhooks/paystack` (public callback)
+- `POST /v1/liquidity/providers` (paid)
+- `GET /v1/liquidity/providers` (paid)
+- `POST /v1/liquidity/providers/:providerId/adjust` (paid)
+- `POST /v1/settlements/credited` (paid)
+
+## Access Control / Billing
+- Primary: **x402** via Thirdweb (`thirdweb/x402`) for agent-friendly pay-per-call access.
+- Optional owner bypass: `OWNER_API_KEY` in `x-api-key` (or Bearer token) for internal/admin calls.
+- Public unauthenticated endpoints remain limited to health and Paystack webhooks.
 
 ## Repo Layout
 - `apps/api` – API service + provider adapters + ledger logic
