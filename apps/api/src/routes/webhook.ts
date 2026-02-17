@@ -1,11 +1,11 @@
 import { Router } from "express";
 import { PaystackProvider } from "../providers/paystack.js";
-import { store } from "../lib/store.js";
+import { ledger } from "../lib/ledger.js";
 
 export const webhookRouter = Router();
 const paystack = new PaystackProvider();
 
-webhookRouter.post("/v1/webhooks/paystack", (req, res) => {
+webhookRouter.post("/v1/webhooks/paystack", async (req, res) => {
   const signature = String(req.headers["x-paystack-signature"] || "");
   const rawBody = String((req as any).rawBody || "");
 
@@ -20,13 +20,13 @@ webhookRouter.post("/v1/webhooks/paystack", (req, res) => {
   const transferRef = String(event?.data?.reference || event?.data?.transfer_code || "");
   if (!transferRef) return res.json({ ok: true, ignored: true });
 
-  const payout = store.findPayoutByTransferRef(transferRef);
+  const payout = await ledger.findPayoutByTransferRef(transferRef);
   if (!payout) return res.json({ ok: true, ignored: true });
 
   if (kind === "transfer.success") {
-    store.updatePayout(payout.payoutId, { status: "settled" });
+    await ledger.updatePayout(payout.payoutId, { status: "settled" });
   } else if (kind === "transfer.failed" || kind === "transfer.reversed") {
-    store.updatePayout(payout.payoutId, {
+    await ledger.updatePayout(payout.payoutId, {
       status: "failed",
       failureReason: String(event?.data?.reason || kind),
     });

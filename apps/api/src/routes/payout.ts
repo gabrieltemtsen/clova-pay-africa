@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { Router } from "express";
 import { z } from "zod";
 import { PaystackProvider } from "../providers/paystack.js";
-import { store } from "../lib/store.js";
+import { ledger } from "../lib/ledger.js";
 
 export const payoutRouter = Router();
 const paystack = new PaystackProvider();
@@ -61,17 +61,17 @@ payoutRouter.post("/v1/payouts", async (req, res) => {
     createdAt: Date.now(),
     updatedAt: Date.now(),
   };
-  store.putPayout(record);
+  await ledger.putPayout(record);
 
   return res.json(record);
 });
 
-payoutRouter.get("/v1/payouts/:payoutId", (req, res) => {
-  const payout = store.getPayout(req.params.payoutId);
+payoutRouter.get("/v1/payouts/:payoutId", async (req, res) => {
+  const payout = await ledger.getPayout(req.params.payoutId);
   if (!payout) return res.status(404).json({ error: "payout_not_found" });
   return res.json(payout);
 });
 
-payoutRouter.get("/v1/payouts", (_req, res) => {
-  return res.json({ payouts: store.listPayouts() });
+payoutRouter.get("/v1/payouts", async (_req, res) => {
+  return res.json({ payouts: await ledger.listPayouts() });
 });
