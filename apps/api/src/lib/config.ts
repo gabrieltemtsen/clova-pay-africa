@@ -20,6 +20,10 @@ export const config = {
     celo: process.env.RPC_URL_CELO || process.env.CELO_RPC_URL || "https://forno.celo.org",
     base: process.env.RPC_URL_BASE || process.env.BASE_RPC_URL || "https://mainnet.base.org",
   },
+  // Delay watcher-triggered verification to allow tx propagation/finality.
+  settlementPrecheckDelayMs: Number(process.env.SETTLEMENT_PRECHECK_DELAY_MS || 40000),
+  settlementVerifyRetryDelayMs: Number(process.env.SETTLEMENT_VERIFY_RETRY_DELAY_MS || 15000),
+  settlementVerifyMaxAttempts: Number(process.env.SETTLEMENT_VERIFY_MAX_ATTEMPTS || 3),
   paystackMode: (process.env.PAYSTACK_MODE || "mock").toLowerCase(),
   paystackBaseUrl: process.env.PAYSTACK_BASE_URL || "https://api.paystack.co",
   paystackSecretKey: process.env.PAYSTACK_SECRET_KEY || "",

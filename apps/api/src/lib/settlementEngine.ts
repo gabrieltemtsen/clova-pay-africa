@@ -6,6 +6,10 @@ import { verifyDeposit } from "./chainVerifier.js";
 
 const paystack = new PaystackProvider();
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export type CreditedInput = {
   quoteId?: string;
   orderId?: string;
@@ -38,21 +42,39 @@ export async function processCredited(input: CreditedInput) {
   if (order) {
     const depositWallet = config.depositWallets[order.asset];
     if (depositWallet) {
-      console.log(`[settlement] verifying tx ${input.txHash.substring(0, 16)}... on-chain`);
+      // For watcher-driven events, wait before first chain check to avoid tx propagation race.
+      if (input.source === "watcher" && config.settlementPrecheckDelayMs > 0) {
+        console.log(`[settlement] waiting ${config.settlementPrecheckDelayMs}ms before verification for ${input.txHash.substring(0, 16)}...`);
+        await sleep(config.settlementPrecheckDelayMs);
+      }
 
-      const verification = await verifyDeposit({
-        txHash: input.txHash,
-        asset: order.asset,
-        expectedAmount: order.amountCrypto,
-        expectedRecipient: depositWallet,
-        minConfirmations: config.minConfirmations[order.asset] || 1,
-      });
+      let verification: any = null;
+      const maxAttempts = Math.max(1, config.settlementVerifyMaxAttempts || 1);
+      for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+        console.log(`[settlement] verifying tx ${input.txHash.substring(0, 16)}... on-chain (attempt ${attempt}/${maxAttempts})`);
 
-      if (!verification.verified) {
-        console.error(`[settlement] ❌ REJECTED tx ${input.txHash.substring(0, 16)}...: ${verification.error}`);
+        verification = await verifyDeposit({
+          txHash: input.txHash,
+          asset: order.asset,
+          expectedAmount: order.amountCrypto,
+          expectedRecipient: depositWallet,
+          minConfirmations: config.minConfirmations[order.asset] || 1,
+        });
+
+        if (verification.verified) break;
+
+        const isRetryable = String(verification.error || "").includes("tx_not_found_or_pending");
+        if (!isRetryable || attempt >= maxAttempts) break;
+
+        console.warn(`[settlement] retryable verification failure (${verification.error}); retrying in ${config.settlementVerifyRetryDelayMs}ms`);
+        await sleep(config.settlementVerifyRetryDelayMs);
+      }
+
+      if (!verification?.verified) {
+        console.error(`[settlement] ❌ REJECTED tx ${input.txHash.substring(0, 16)}...: ${verification?.error}`);
         return {
           error: "deposit_verification_failed",
-          detail: verification.error,
+          detail: verification?.error || "verification_failed",
           verification,
         };
       }
