@@ -14,6 +14,12 @@ export type PaystackRecipientInput = {
   currency?: "NGN";
 };
 
+export type PaystackResolvedAccount = {
+  accountName: string;
+  accountNumber: string;
+  bankCode: string;
+};
+
 async function paystackRequest(path: string, method: "GET" | "POST", body?: unknown) {
   const r = await fetch(`${config.paystackBaseUrl}${path}`, {
     method,
@@ -32,6 +38,19 @@ async function paystackRequest(path: string, method: "GET" | "POST", body?: unkn
 }
 
 export class PaystackProvider {
+  async resolveAccount(accountNumber: string, bankCode: string): Promise<PaystackResolvedAccount> {
+    if (config.paystackMode !== "live") {
+      return { accountName: "Mock Verified Account", accountNumber, bankCode };
+    }
+
+    const data = await paystackRequest(`/bank/resolve?account_number=${encodeURIComponent(accountNumber)}&bank_code=${encodeURIComponent(bankCode)}`, "GET");
+    return {
+      accountName: String(data?.data?.account_name || ""),
+      accountNumber: String(data?.data?.account_number || accountNumber),
+      bankCode,
+    };
+  }
+
   async listBanks(country = "nigeria"): Promise<Array<{ name: string; code: string }>> {
     if (config.paystackMode !== "live") {
       return [

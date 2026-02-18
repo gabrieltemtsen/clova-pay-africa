@@ -19,6 +19,32 @@ const orderSchema = z.object({
     }),
 });
 
+const resolveRecipientSchema = z.object({
+    accountNumber: z.string().min(10).max(10),
+    bankCode: z.string().min(3),
+});
+
+// ----- POST /v1/recipients/resolve — verify account details ------
+orderRouter.post("/v1/recipients/resolve", async (req, res) => {
+    const parsed = resolveRecipientSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+    try {
+        const resolved = await paystack.resolveAccount(parsed.data.accountNumber, parsed.data.bankCode);
+        return res.json({
+            accountName: resolved.accountName,
+            accountNumber: resolved.accountNumber,
+            bankCode: resolved.bankCode,
+            verified: true,
+        });
+    } catch (e: any) {
+        return res.status(400).json({
+            error: "recipient_verification_failed",
+            detail: String(e?.message || e),
+        });
+    }
+});
+
 // ----- POST /v1/orders  —  create offramp order ------
 orderRouter.post("/v1/orders", async (req, res) => {
     const parsed = orderSchema.safeParse(req.body);
@@ -29,6 +55,14 @@ orderRouter.post("/v1/orders", async (req, res) => {
     const depositAddress = config.depositWallets[asset];
     if (!depositAddress) {
         return res.status(503).json({ error: "no_deposit_wallet", hint: `No deposit wallet configured for ${asset}` });
+    }
+
+    let resolvedAccountName = recipient.accountName;
+    try {
+        const resolved = await paystack.resolveAccount(recipient.accountNumber, recipient.bankCode);
+        resolvedAccountName = resolved.accountName || recipient.accountName;
+    } catch (e: any) {
+        return res.status(400).json({ error: "recipient_verification_failed", detail: String(e?.message || e) });
     }
 
     const quote = await makeQuote({ asset, amountCrypto, destinationCurrency: "NGN" });
@@ -43,7 +77,7 @@ orderRouter.post("/v1/orders", async (req, res) => {
         feeNgn: quote.feeNgn,
         receiveNgn: quote.receiveNgn,
         depositAddress,
-        recipientName: recipient.accountName,
+        recipientName: resolvedAccountName,
         recipientAccount: recipient.accountNumber,
         recipientBankCode: recipient.bankCode,
         status: "awaiting_deposit",
