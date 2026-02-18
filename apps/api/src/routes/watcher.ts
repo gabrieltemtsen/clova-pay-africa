@@ -28,16 +28,9 @@ watcherRouter.post("/v1/watchers/deposits", async (req, res) => {
     return res.status(400).json({ error: "quoteId_or_orderId_required" });
   }
 
-  const min = config.minConfirmations[parsed.data.asset];
-  if (parsed.data.confirmations < min) {
-    return res.status(202).json({
-      accepted: false,
-      reason: "insufficient_confirmations",
-      required: min,
-      current: parsed.data.confirmations,
-    });
-  }
-
   const out = await processCredited({ ...parsed.data, source: "watcher" });
+  if ((out as any)?.error) {
+    return res.status(202).json({ accepted: false, ...out });
+  }
   return res.json({ accepted: true, ...out });
 });
