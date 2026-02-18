@@ -9,6 +9,24 @@ import { PaystackProvider } from "../providers/paystack.js";
 export const orderRouter = Router();
 const paystack = new PaystackProvider();
 
+async function reconcileOrderStatus(orderId: string) {
+    const order = await ledger.getOrder(orderId);
+    if (!order) return null;
+
+    const payout = await ledger.findPayoutByQuoteId(orderId);
+    if (!payout) return { order, payout: null };
+
+    // Keep order status consistent with payout terminal states.
+    if (payout.status === "settled" && order.status !== "settled") {
+        await ledger.updateOrder(orderId, { status: "settled" });
+    } else if (payout.status === "failed" && order.status !== "failed") {
+        await ledger.updateOrder(orderId, { status: "failed", failureReason: payout.failureReason || order.failureReason });
+    }
+
+    const freshOrder = await ledger.getOrder(orderId);
+    return { order: freshOrder, payout };
+}
+
 const orderSchema = z.object({
     asset: z.enum(["cUSD_CELO", "USDC_BASE", "USDCX_STACKS"]),
     amountCrypto: z.string().min(1),
@@ -105,18 +123,19 @@ orderRouter.get("/v1/orders", async (_req, res) => {
 
 // ----- GET /v1/orders/:orderId  —  get single order ------
 orderRouter.get("/v1/orders/:orderId", async (req, res) => {
-    const order = await ledger.getOrder(req.params.orderId);
-    if (!order) return res.status(404).json({ error: "order_not_found" });
-    return res.json(order);
+    const out = await reconcileOrderStatus(req.params.orderId);
+    if (!out?.order) return res.status(404).json({ error: "order_not_found" });
+    return res.json(out.order);
 });
 
 // ----- GET /v1/orders/:orderId/debug  —  deep debug snapshot for reconciliation ------
 orderRouter.get("/v1/orders/:orderId/debug", async (req, res) => {
     const orderId = req.params.orderId;
-    const order = await ledger.getOrder(orderId);
+    const reconciled = await reconcileOrderStatus(orderId);
+    const order = reconciled?.order;
     if (!order) return res.status(404).json({ error: "order_not_found" });
 
-    const payout = await ledger.findPayoutByQuoteId(orderId);
+    const payout = reconciled?.payout || null;
     const settlements = (await ledger.listSettlements(500)).filter((s) => s.quoteId === orderId || (order.txHash && s.txHash === order.txHash.toLowerCase()));
     const entries = (await ledger.listLedgerEntries(500)).filter((e) => e.quoteId === orderId || (payout?.payoutId && e.payoutId === payout.payoutId));
 
@@ -133,5 +152,51 @@ orderRouter.get("/v1/orders/:orderId/debug", async (req, res) => {
             payoutStatus: payout?.status || null,
             failureReason: order.failureReason || payout?.failureReason || null,
         },
+    });
+});
+
+const disputeSchema = z.object({
+    reason: z.string().min(3),
+    requestedBy: z.string().optional(),
+});
+
+// ----- POST /v1/orders/:orderId/dispute  —  open a reconciliation/dispute record on order ------
+orderRouter.post("/v1/orders/:orderId/dispute", async (req, res) => {
+    const parsed = disputeSchema.safeParse(req.body || {});
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+    const order = await ledger.getOrder(req.params.orderId);
+    if (!order) return res.status(404).json({ error: "order_not_found" });
+
+    const reason = `dispute_opened:${parsed.data.reason}${parsed.data.requestedBy ? `:by:${parsed.data.requestedBy}` : ""}`;
+    const updated = await ledger.updateOrder(order.orderId, { failureReason: reason });
+
+    return res.json({ ok: true, order: updated, action: "dispute_opened" });
+});
+
+// ----- POST /v1/orders/:orderId/refund  —  mark payout failure path and refund pending ------
+orderRouter.post("/v1/orders/:orderId/refund", async (req, res) => {
+    const order = await ledger.getOrder(req.params.orderId);
+    if (!order) return res.status(404).json({ error: "order_not_found" });
+
+    const payout = await ledger.findPayoutByQuoteId(order.orderId);
+    if (payout && payout.status !== "failed") {
+        await ledger.updatePayout(payout.payoutId, {
+            status: "failed",
+            failureReason: "refund_pending_manual_reconciliation",
+        });
+    }
+
+    const updated = await ledger.updateOrder(order.orderId, {
+        status: "failed",
+        failureReason: "refund_pending_manual_reconciliation",
+    });
+
+    return res.json({
+        ok: true,
+        action: "refund_pending",
+        order: updated,
+        payoutId: payout?.payoutId || null,
+        note: "Trigger onchain refund from treasury/wallet and attach refund tx hash in your ops runbook.",
     });
 });
