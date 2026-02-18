@@ -16,8 +16,9 @@ export const config = {
   },
   orderExpiryMs: Number(process.env.ORDER_EXPIRY_MS || 30 * 60 * 1000), // 30 min
   rpcUrls: {
-    celo: process.env.RPC_URL_CELO || "https://forno.celo.org",
-    base: process.env.RPC_URL_BASE || "https://mainnet.base.org",
+    // Support both naming styles to avoid env mismatch during deploys.
+    celo: process.env.RPC_URL_CELO || process.env.CELO_RPC_URL || "https://forno.celo.org",
+    base: process.env.RPC_URL_BASE || process.env.BASE_RPC_URL || "https://mainnet.base.org",
   },
   paystackMode: (process.env.PAYSTACK_MODE || "mock").toLowerCase(),
   paystackBaseUrl: process.env.PAYSTACK_BASE_URL || "https://api.paystack.co",

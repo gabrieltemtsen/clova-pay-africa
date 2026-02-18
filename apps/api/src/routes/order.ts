@@ -109,3 +109,29 @@ orderRouter.get("/v1/orders/:orderId", async (req, res) => {
     if (!order) return res.status(404).json({ error: "order_not_found" });
     return res.json(order);
 });
+
+// ----- GET /v1/orders/:orderId/debug  —  deep debug snapshot for reconciliation ------
+orderRouter.get("/v1/orders/:orderId/debug", async (req, res) => {
+    const orderId = req.params.orderId;
+    const order = await ledger.getOrder(orderId);
+    if (!order) return res.status(404).json({ error: "order_not_found" });
+
+    const payout = await ledger.findPayoutByQuoteId(orderId);
+    const settlements = (await ledger.listSettlements(500)).filter((s) => s.quoteId === orderId || (order.txHash && s.txHash === order.txHash.toLowerCase()));
+    const entries = (await ledger.listLedgerEntries(500)).filter((e) => e.quoteId === orderId || (payout?.payoutId && e.payoutId === payout.payoutId));
+
+    return res.json({
+        order,
+        payout: payout || null,
+        settlements,
+        ledgerEntries: entries,
+        diagnostics: {
+            hasOrderTxHash: Boolean(order.txHash),
+            settlementCount: settlements.length,
+            hasPayout: Boolean(payout),
+            orderStatus: order.status,
+            payoutStatus: payout?.status || null,
+            failureReason: order.failureReason || payout?.failureReason || null,
+        },
+    });
+});
