@@ -25,10 +25,16 @@ webhookRouter.post("/v1/webhooks/paystack", async (req, res) => {
 
   if (kind === "transfer.success") {
     await ledger.updatePayout(payout.payoutId, { status: "settled" });
+    await ledger.updateOrder(payout.quoteId, { status: "settled" });
   } else if (kind === "transfer.failed" || kind === "transfer.reversed") {
+    const reason = String(event?.data?.reason || kind);
     await ledger.updatePayout(payout.payoutId, {
       status: "failed",
-      failureReason: String(event?.data?.reason || kind),
+      failureReason: reason,
+    });
+    await ledger.updateOrder(payout.quoteId, {
+      status: "failed",
+      failureReason: reason,
     });
   }
 
