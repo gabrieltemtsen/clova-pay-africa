@@ -1,244 +1,271 @@
+/**
+ * settlementEngine.ts
+ *
+ * Handles confirmed on-chain deposits and triggers fiat payouts.
+ *
+ * Payout rail: Paycrest (primary).
+ * Paystack: SUSPENDED — webhook stub kept but no new payouts are created.
+ *
+ * Flow per asset:
+ *  - cUSD_CELO / USDC_BASE:
+ *      Paycrest order was already created at POST /v1/orders.
+ *      Settlement engine records the deposit + updates order to "confirming".
+ *      Paycrest webhook (POST /v1/webhooks/paycrest) handles final status.
+ *
+ *  - USDCX_STACKS:
+ *      No Paycrest order yet (Paycrest doesn't support Stacks natively).
+ *      Settlement engine creates a fresh Paycrest USDC/Base order funded from
+ *      our reserve wallet, then updates order status.
+ *      The USDCx in the Clarity contract is swept separately by ops.
+ */
+
 import { randomUUID } from "node:crypto";
 import { config } from "./config.js";
 import { ledger } from "./ledger.js";
-import { PaystackProvider } from "../providers/paystack.js";
+import { PaycrestProvider } from "../providers/paycrest.js";
 import { verifyDeposit } from "./chainVerifier.js";
 
-const paystack = new PaystackProvider();
+const paycrest = new PaycrestProvider();
 
 function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 export type CreditedInput = {
-  quoteId?: string;
-  orderId?: string;
-  asset: "cUSD_CELO" | "USDC_BASE" | "USDCX_STACKS";
-  amountCrypto: string;
-  txHash: string;
-  confirmations: number;
-  source: "watcher" | "manual";
-  providerId?: string;
+    quoteId?: string;
+    orderId?: string;
+    asset: "cUSD_CELO" | "USDC_BASE" | "USDCX_STACKS";
+    amountCrypto: string;
+    txHash: string;
+    confirmations: number;
+    source: "watcher" | "manual";
+    providerId?: string;
 };
 
 export async function processCredited(input: CreditedInput) {
-  const now = Date.now();
+    const now = Date.now();
 
-  // Determine the quoteId — if an orderId is given, pull it from the order
-  let quoteId = input.quoteId || "";
-  let order = input.orderId ? await ledger.getOrder(input.orderId) : undefined;
+    // Resolve orderId / quoteId
+    let quoteId = input.quoteId || "";
+    let order = input.orderId ? await ledger.getOrder(input.orderId) : undefined;
 
-  // If quoteId looks like an orderId, try to resolve it
-  if (!order && quoteId.startsWith("ord_")) {
-    order = await ledger.getOrder(quoteId);
-  }
-
-  // Use the orderId as quoteId for settlement tracking when order-based
-  if (order) quoteId = order.orderId;
-  if (!quoteId) return { error: "quoteId_or_orderId_required" };
-
-  // ── ON-CHAIN VERIFICATION ──────────────────────────────────
-  // Verify the txHash is real before doing anything
-  if (order) {
-    const depositWallet = config.depositWallets[order.asset];
-    if (depositWallet) {
-      // For watcher-driven events, wait before first chain check to avoid tx propagation race.
-      if (input.source === "watcher" && config.settlementPrecheckDelayMs > 0) {
-        console.log(`[settlement] waiting ${config.settlementPrecheckDelayMs}ms before verification for ${input.txHash.substring(0, 16)}...`);
-        await sleep(config.settlementPrecheckDelayMs);
-      }
-
-      let verification: any = null;
-      const maxAttempts = Math.max(1, config.settlementVerifyMaxAttempts || 1);
-      for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-        console.log(`[settlement] verifying tx ${input.txHash.substring(0, 16)}... on-chain (attempt ${attempt}/${maxAttempts})`);
-
-        verification = await verifyDeposit({
-          txHash: input.txHash,
-          asset: order.asset,
-          expectedAmount: order.amountCrypto,
-          expectedRecipient: depositWallet,
-          minConfirmations: config.minConfirmations[order.asset] || 1,
-        });
-
-        if (verification.verified) break;
-
-        const isRetryable = String(verification.error || "").includes("tx_not_found_or_pending");
-        if (!isRetryable || attempt >= maxAttempts) break;
-
-        console.warn(`[settlement] retryable verification failure (${verification.error}); retrying in ${config.settlementVerifyRetryDelayMs}ms`);
-        await sleep(config.settlementVerifyRetryDelayMs);
-      }
-
-      if (!verification?.verified) {
-        console.error(`[settlement] ❌ REJECTED tx ${input.txHash.substring(0, 16)}...: ${verification?.error}`);
-        return {
-          error: "deposit_verification_failed",
-          detail: verification?.error || "verification_failed",
-          verification,
-        };
-      }
-
-      console.log(`[settlement] ✅ tx verified: ${verification.amountOnChain} ${order.asset} from ${verification.from}`);
+    if (!order && quoteId.startsWith("ord_")) {
+        order = await ledger.getOrder(quoteId);
     }
-  }
+    if (order) quoteId = order.orderId;
+    if (!quoteId) return { error: "quoteId_or_orderId_required" };
 
-  const created = await ledger.createSettlementIfAbsent({
-    settlementId: `st_${randomUUID()}`,
-    quoteId,
-    asset: input.asset,
-    amountCrypto: input.amountCrypto,
-    txHash: input.txHash,
-    confirmations: input.confirmations,
-    source: input.source,
-    status: "credited",
-    createdAt: now,
-    updatedAt: now,
-  });
+    // ── ON-CHAIN VERIFICATION ─────────────────────────────────────────────
+    if (order) {
+        const depositWallet = config.depositWallets[order.asset];
+        // For Celo/Base, depositWallet is Paycrest's address — skip our own verification
+        // (Paycrest handles it). For Stacks, depositWallet is our Clarity contract.
+        const shouldVerify = order.asset === "USDCX_STACKS" && Boolean(depositWallet);
 
-  if (!created.inserted) {
-    return { ...created, idempotent: true };
-  }
+        if (shouldVerify && depositWallet) {
+            if (input.source === "watcher" && config.settlementPrecheckDelayMs > 0) {
+                console.log(`[settlement] waiting ${config.settlementPrecheckDelayMs}ms before Stacks verification`);
+                await sleep(config.settlementPrecheckDelayMs);
+            }
 
-  // ── ORDER-BASED AUTO-PAYOUT ──────────────────────────────────
-  if (order && order.status === "awaiting_deposit") {
-    try {
-      await ledger.updateOrder(order.orderId, { status: "confirming", txHash: input.txHash });
+            let verification: any = null;
+            const maxAttempts = Math.max(1, config.settlementVerifyMaxAttempts || 1);
+            for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+                console.log(`[settlement] verifying Stacks tx ${input.txHash.slice(0, 16)}... (attempt ${attempt}/${maxAttempts})`);
+                verification = await verifyDeposit({
+                    txHash: input.txHash,
+                    asset: order.asset,
+                    expectedAmount: order.amountCrypto,
+                    expectedRecipient: depositWallet,
+                    minConfirmations: config.minConfirmations[order.asset] || 1,
+                });
 
-      // Create Paystack recipient
-      const recipient = await paystack.createRecipient({
-        name: order.recipientName,
-        accountNumber: order.recipientAccount,
-        bankCode: order.recipientBankCode,
-        currency: "NGN",
-      });
+                if (verification.verified) break;
 
-      const amountKobo = Math.round(Number(order.receiveNgn) * 100);
-      const transfer = await paystack.createTransfer({
-        amountKobo,
-        recipientCode: recipient.recipientCode,
-        reason: `Clova offramp ${order.orderId}`,
-      });
+                const retryable = String(verification.error || "").includes("tx_not_found_or_pending");
+                if (!retryable || attempt >= maxAttempts) break;
 
-      const payoutId = `po_${randomUUID()}`;
-      await ledger.putPayout({
-        payoutId,
-        quoteId: order.orderId,
-        amountKobo,
-        currency: "NGN",
-        recipientCode: recipient.recipientCode,
-        reason: `Clova offramp ${order.orderId}`,
-        status: "processing",
-        provider: "paystack",
-        transferCode: transfer.transferCode,
-        transferRef: transfer.transferRef,
+                await sleep(config.settlementVerifyRetryDelayMs);
+            }
+
+            if (!verification?.verified) {
+                console.error(`[settlement] ❌ REJECTED Stacks tx ${input.txHash.slice(0, 16)}: ${verification?.error}`);
+                return { error: "deposit_verification_failed", detail: verification?.error, verification };
+            }
+            console.log(`[settlement] ✅ Stacks tx verified: ${verification.amountOnChain} USDCx`);
+        }
+    }
+
+    // ── IDEMPOTENT SETTLEMENT RECORD ────────────────────────────────────
+    const created = await ledger.createSettlementIfAbsent({
+        settlementId: `st_${randomUUID()}`,
+        quoteId,
+        asset: input.asset,
+        amountCrypto: input.amountCrypto,
+        txHash: input.txHash,
+        confirmations: input.confirmations,
+        source: input.source,
+        status: "credited",
         createdAt: now,
         updatedAt: now,
-      });
+    });
 
-      await ledger.updateOrder(order.orderId, {
-        status: "paid_out",
-        recipientCode: recipient.recipientCode,
-        payoutId,
-        transferCode: transfer.transferCode,
-      });
-
-      // Record platform fee
-      const totalFeeKobo = Math.max(0, Math.round((amountKobo * config.defaultFeeBps) / 10000));
-      if (totalFeeKobo > 0) {
-        await ledger.addLedgerEntry({
-          entryId: `le_${randomUUID()}`,
-          quoteId: order.orderId,
-          payoutId,
-          kind: "platform_fee",
-          currency: "NGN",
-          amountKobo: totalFeeKobo,
-          memo: `Auto-payout fee for order ${order.orderId}`,
-          createdAt: now,
-        });
-      }
-
-      console.log(`[settlement] order ${order.orderId} → auto-payout ${payoutId} (${transfer.transferCode})`);
-
-      return {
-        ...created,
-        idempotent: false,
-        orderId: order.orderId,
-        payoutId,
-        transferCode: transfer.transferCode,
-        status: "paid_out",
-        fees: { totalFeeKobo, platformFeeKobo: totalFeeKobo, lpFeeKobo: 0, providerId: null },
-      };
-
-    } catch (err: any) {
-      const reason = err?.message || "auto_payout_failed";
-      console.error(`[settlement] auto-payout failed for order ${order.orderId}:`, reason);
-      await ledger.updateOrder(order.orderId, { status: "failed", failureReason: reason });
-
-      return {
-        ...created,
-        idempotent: false,
-        orderId: order.orderId,
-        status: "failed",
-        error: reason,
-      };
+    if (!created.inserted) {
+        return { ...created, idempotent: true };
     }
-  }
 
-  // ── LEGACY PAYOUT-BASED FLOW ─────────────────────────────────
-  const payout = await ledger.findPayoutByQuoteId(quoteId);
-  if (!payout) {
-    return { ...created, idempotent: false, warning: "payout_not_found_for_quote" };
-  }
+    if (!order || order.status !== "awaiting_deposit") {
+        return { ...created, idempotent: false, warning: "order_not_found_or_wrong_status" };
+    }
 
-  const totalFeeKobo = Math.max(0, Math.round((payout.amountKobo * config.defaultFeeBps) / 10000));
-  let lpFeeKobo = 0;
-  let providerId = input.providerId;
+    // Mark as confirming
+    await ledger.updateOrder(order.orderId, { status: "confirming", txHash: input.txHash });
 
-  if (providerId) {
-    const lp = await ledger.getProvider(providerId);
-    if (lp) lpFeeKobo = Math.min(totalFeeKobo, Math.round((payout.amountKobo * lp.feeBps) / 10000));
-    else providerId = undefined;
-  }
+    // ── PAYOUT ROUTING ────────────────────────────────────────────────────
 
-  const platformFeeKobo = Math.max(0, totalFeeKobo - lpFeeKobo);
+    // cUSD_CELO / USDC_BASE — Paycrest order was already created at order time.
+    // Just update the ledger; Paycrest webhook will flip status to settled/failed.
+    if (order.asset === "cUSD_CELO" || order.asset === "USDC_BASE") {
+        if (!order.paycrestOrderId) {
+            // Edge case: order was created before Paycrest integration.
+            // Fall through to legacy flow below.
+            console.warn(`[settlement] order ${order.orderId} has no paycrestOrderId — falling back to ad-hoc Paycrest order`);
+        } else {
+            console.log(`[settlement] ✅ deposit confirmed for Paycrest order ${order.paycrestOrderId} — awaiting Paycrest webhook`);
+            return {
+                ...created,
+                idempotent: false,
+                orderId: order.orderId,
+                paycrestOrderId: order.paycrestOrderId,
+                status: "confirming",
+                note: "Paycrest is handling payout — final status via webhook",
+            };
+        }
+    }
 
-  if (platformFeeKobo > 0) {
-    await ledger.addLedgerEntry({
-      entryId: `le_${randomUUID()}`,
-      quoteId: payout.quoteId,
-      payoutId: payout.payoutId,
-      kind: "platform_fee",
-      currency: "NGN",
-      amountKobo: platformFeeKobo,
-      memo: `Fee accrual on settlement tx ${created.settlement.txHash}`,
-      createdAt: now,
-    });
-  }
+    // USDCX_STACKS — create a fresh Paycrest order using USDC/Base reserves.
+    if (order.asset === "USDCX_STACKS") {
+        try {
+            const reserveWallet = config.stacksReserveWallet;
+            if (!reserveWallet) {
+                throw new Error("STACKS_RESERVE_WALLET not configured — cannot create Paycrest order for Stacks payout");
+            }
 
-  if (lpFeeKobo > 0 && providerId) {
-    await ledger.addLedgerEntry({
-      entryId: `le_${randomUUID()}`,
-      quoteId: payout.quoteId,
-      payoutId: payout.payoutId,
-      providerId,
-      kind: "lp_fee",
-      currency: "NGN",
-      amountKobo: lpFeeKobo,
-      memo: `LP fee accrual on settlement tx ${created.settlement.txHash}`,
-      createdAt: now,
-    });
-  }
+            const pcOrder = await paycrest.createOrder({
+                amountCrypto: order.amountCrypto,
+                token: "USDC",
+                network: "base",
+                rate: order.rate,
+                recipient: {
+                    institution: order.recipientBankCode,
+                    accountIdentifier: order.recipientAccount,
+                    accountName: order.recipientName,
+                    currency: "NGN",
+                    memo: `Clova Stacks offramp ${order.orderId}`,
+                },
+                reference: order.orderId,
+                returnAddress: reserveWallet,
+            });
 
-  return {
-    ...created,
-    idempotent: false,
-    payoutId: payout.payoutId,
-    fees: {
-      totalFeeKobo,
-      platformFeeKobo,
-      lpFeeKobo,
-      providerId: providerId || null,
-    },
-  };
+            const payoutId = `po_${randomUUID()}`;
+            await ledger.putPayout({
+                payoutId,
+                quoteId: order.orderId,
+                amountKobo: Math.round(Number(order.receiveNgn) * 100),
+                currency: "NGN",
+                recipientCode: order.orderId,
+                reason: `Stacks USDCx offramp ${order.orderId}`,
+                status: "processing",
+                provider: "paycrest",
+                transferCode: pcOrder.id,
+                transferRef: order.orderId,
+                createdAt: now,
+                updatedAt: now,
+            });
+
+            await ledger.updateOrder(order.orderId, {
+                paycrestOrderId: pcOrder.id,
+                payoutId,
+                transferCode: pcOrder.id,
+            });
+
+            console.log(`[settlement] Stacks order ${order.orderId} → Paycrest order ${pcOrder.id}`);
+            return {
+                ...created,
+                idempotent: false,
+                orderId: order.orderId,
+                paycrestOrderId: pcOrder.id,
+                status: "confirming",
+                note: "Paycrest USDC/Base order created — fiat payout in progress",
+            };
+        } catch (err: any) {
+            const reason = err?.message || "stacks_paycrest_order_failed";
+            console.error(`[settlement] Stacks payout failed for ${order.orderId}:`, reason);
+            await ledger.updateOrder(order.orderId, { status: "failed", failureReason: reason });
+            return { ...created, idempotent: false, orderId: order.orderId, status: "failed", error: reason };
+        }
+    }
+
+    // ── LEGACY FALLBACK: no paycrestOrderId on Celo/Base order ─────────
+    // Create an ad-hoc Paycrest order (covers orders created before this migration)
+    try {
+        const paycrestAssetMap: Record<string, { token: string; network: string }> = {
+            cUSD_CELO: { token: "CUSD", network: "celo" },
+            USDC_BASE: { token: "USDC", network: "base" },
+        };
+        const pa = paycrestAssetMap[order.asset];
+        if (!pa) throw new Error(`no_paycrest_mapping_for_${order.asset}`);
+
+        const pcOrder = await paycrest.createOrder({
+            amountCrypto: order.amountCrypto,
+            token: pa.token,
+            network: pa.network,
+            rate: order.rate,
+            recipient: {
+                institution: order.recipientBankCode,
+                accountIdentifier: order.recipientAccount,
+                accountName: order.recipientName,
+                currency: "NGN",
+                memo: `Clova legacy offramp ${order.orderId}`,
+            },
+            reference: order.orderId,
+            returnAddress: config.depositWallets[order.asset] || "0x0000000000000000000000000000000000000000",
+        });
+
+        const payoutId = `po_${randomUUID()}`;
+        await ledger.putPayout({
+            payoutId,
+            quoteId: order.orderId,
+            amountKobo: Math.round(Number(order.receiveNgn) * 100),
+            currency: "NGN",
+            recipientCode: order.orderId,
+            reason: `Legacy offramp ${order.orderId}`,
+            status: "processing",
+            provider: "paycrest",
+            transferCode: pcOrder.id,
+            transferRef: order.orderId,
+            createdAt: now,
+            updatedAt: now,
+        });
+
+        await ledger.updateOrder(order.orderId, {
+            paycrestOrderId: pcOrder.id,
+            payoutId,
+            transferCode: pcOrder.id,
+        });
+
+        console.log(`[settlement] legacy order ${order.orderId} → Paycrest ${pcOrder.id}`);
+        return {
+            ...created,
+            idempotent: false,
+            orderId: order.orderId,
+            paycrestOrderId: pcOrder.id,
+            status: "confirming",
+        };
+    } catch (err: any) {
+        const reason = err?.message || "paycrest_ad_hoc_order_failed";
+        console.error(`[settlement] legacy payout failed for ${order.orderId}:`, reason);
+        await ledger.updateOrder(order.orderId, { status: "failed", failureReason: reason });
+        return { ...created, idempotent: false, orderId: order.orderId, status: "failed", error: reason };
+    }
 }

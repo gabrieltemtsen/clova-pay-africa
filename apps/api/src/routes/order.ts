@@ -9,6 +9,13 @@ import { PaycrestProvider } from "../providers/paycrest.js";
 export const orderRouter = Router();
 const paycrest = new PaycrestProvider();
 
+// Map our asset keys to Paycrest token/network pairs
+const ASSET_TO_PAYCREST: Record<string, { token: string; network: string }> = {
+    cUSD_CELO: { token: "CUSD", network: "celo" },
+    USDC_BASE: { token: "USDC", network: "base" },
+    // USDCX_STACKS: handled via Clarity contract — not routed through Paycrest directly
+};
+
 async function reconcileOrderStatus(orderId: string) {
     const order = await ledger.getOrder(orderId);
     if (!order) return null;
@@ -16,7 +23,6 @@ async function reconcileOrderStatus(orderId: string) {
     const payout = await ledger.findPayoutByQuoteId(orderId);
     if (!payout) return { order, payout: null };
 
-    // Keep order status consistent with payout terminal states.
     if (payout.status === "settled" && order.status !== "settled") {
         await ledger.updateOrder(orderId, { status: "settled" });
     } else if (payout.status === "failed" && order.status !== "failed") {
@@ -35,6 +41,7 @@ const orderSchema = z.object({
         accountNumber: z.string().min(10).max(10),
         bankCode: z.string().min(3),
     }),
+    returnAddress: z.string().optional(),  // refund address if order fails/expires
 });
 
 const resolveRecipientSchema = z.object({
@@ -48,8 +55,6 @@ orderRouter.post("/v1/recipients/resolve", async (req, res) => {
     if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
     try {
-        // PayCrest handles account resolution synchronously or during order creation depending on the flow
-        // For the sake of the API we return a mocked success or pass-through
         return res.json({
             accountName: "Resolved via PayCrest",
             accountNumber: parsed.data.accountNumber,
@@ -69,26 +74,73 @@ orderRouter.post("/v1/orders", async (req, res) => {
     const parsed = orderSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
-    const { asset, amountCrypto, recipient } = parsed.data;
-
-    const depositAddress = config.depositWallets[asset];
-    if (!depositAddress) {
-        return res.status(503).json({ error: "no_deposit_wallet", hint: `No deposit wallet configured for ${asset}` });
-    }
-
-    let resolvedAccountName = recipient.accountName;
-    try {
-        // Passthrough resolution 
-        resolvedAccountName = recipient.accountName;
-    } catch (e: any) {
-        return res.status(400).json({ error: "recipient_verification_failed", detail: String(e?.message || e) });
-    }
-
-    const quote = await makeQuote({ asset, amountCrypto, destinationCurrency: "NGN" });
+    const { asset, amountCrypto, recipient, returnAddress } = parsed.data;
     const now = Date.now();
+    const orderId = `ord_${randomUUID()}`;
+
+    // Generate quote first (rate + fee calculation)
+    const quote = await makeQuote({ asset, amountCrypto, destinationCurrency: "NGN" });
+
+    let depositAddress = "";
+    let paycrestOrderId: string | undefined;
+
+    if (asset === "USDCX_STACKS") {
+        // Stacks: user sends USDCx to our Clarity contract
+        // The orderId is embedded as a memo so the watcher can match the deposit
+        depositAddress = config.depositWallets.USDCX_STACKS;
+        if (!depositAddress) {
+            return res.status(503).json({
+                error: "stacks_not_configured",
+                hint: "DEPOSIT_WALLET_STACKS (Clarity contract principal) is not set",
+            });
+        }
+        // Note: Paycrest order for Stacks is created later by the settlement engine
+        // after the USDCx deposit is confirmed on-chain
+    } else {
+        // Celo/Base: create a Paycrest order and use Paycrest's deposit address
+        const paycrestAsset = ASSET_TO_PAYCREST[asset];
+        if (!paycrestAsset) {
+            return res.status(400).json({ error: "unsupported_asset" });
+        }
+
+        try {
+            const pcOrder = await paycrest.createOrder({
+                amountCrypto,
+                token: paycrestAsset.token,
+                network: paycrestAsset.network,
+                rate: quote.rate,
+                recipient: {
+                    institution: recipient.bankCode,
+                    accountIdentifier: recipient.accountNumber,
+                    accountName: recipient.accountName,
+                    currency: "NGN",
+                    memo: `Clova offramp ${orderId}`,
+                },
+                reference: orderId,
+                returnAddress: returnAddress || config.depositWallets[asset] || "0x0000000000000000000000000000000000000000",
+            });
+
+            depositAddress = pcOrder.depositAddress;
+            paycrestOrderId = pcOrder.id;
+
+            if (!depositAddress) {
+                console.error("[order] Paycrest did not return a deposit address", pcOrder);
+                return res.status(502).json({
+                    error: "paycrest_no_deposit_address",
+                    detail: "Paycrest did not return a deposit address for this order",
+                });
+            }
+        } catch (e: any) {
+            console.error("[order] Paycrest createOrder failed:", e.message);
+            return res.status(502).json({
+                error: "paycrest_order_failed",
+                detail: e.message,
+            });
+        }
+    }
 
     const order: OfframpOrder = {
-        orderId: `ord_${randomUUID()}`,
+        orderId,
         asset,
         amountCrypto,
         rate: quote.rate,
@@ -96,9 +148,10 @@ orderRouter.post("/v1/orders", async (req, res) => {
         feeNgn: quote.feeNgn,
         receiveNgn: quote.receiveNgn,
         depositAddress,
-        recipientName: resolvedAccountName,
+        recipientName: recipient.accountName,
         recipientAccount: recipient.accountNumber,
         recipientBankCode: recipient.bankCode,
+        paycrestOrderId,
         status: "awaiting_deposit",
         expiresAt: now + config.orderExpiryMs,
         createdAt: now,
@@ -107,18 +160,21 @@ orderRouter.post("/v1/orders", async (req, res) => {
 
     await ledger.putOrder(order);
 
-    return res.json(order);
+    return res.json({
+        ...order,
+        // Helpful hint for Stacks users
+        ...(asset === "USDCX_STACKS" && {
+            depositMemo: orderId,   // must be included as memo in the Clarity contract call
+            hint: `Send exactly ${amountCrypto} USDCx to the deposit contract with memo="${orderId}"`,
+        }),
+    });
 });
 
-// ----- GET /v1/banks — discover payout banks ------
+// ----- GET /v1/banks — discover supported payout institutions ------
 orderRouter.get("/v1/banks", async (req, res) => {
-    const country = String(req.query.country || "nigeria");
-    // TODO: implement dynamic bank listing using Paycrest if available, else static
-    const banks = [
-        { name: "First Bank", code: "011" },
-        { name: "GTBank", code: "058" }
-    ];
-    return res.json({ country, banks });
+    const currency = String(req.query.currency || "NGN");
+    const institutions = await paycrest.getSupportedInstitutions(currency);
+    return res.json({ currency, institutions });
 });
 
 // ----- GET /v1/orders  —  list orders ------
@@ -133,7 +189,7 @@ orderRouter.get("/v1/orders/:orderId", async (req, res) => {
     return res.json(out.order);
 });
 
-// ----- GET /v1/orders/:orderId/debug  —  deep debug snapshot for reconciliation ------
+// ----- GET /v1/orders/:orderId/debug  —  deep debug snapshot ------
 orderRouter.get("/v1/orders/:orderId/debug", async (req, res) => {
     const orderId = req.params.orderId;
     const reconciled = await reconcileOrderStatus(orderId);
@@ -141,14 +197,21 @@ orderRouter.get("/v1/orders/:orderId/debug", async (req, res) => {
     if (!order) return res.status(404).json({ error: "order_not_found" });
 
     const payout = reconciled?.payout || null;
-    const settlements = (await ledger.listSettlements(500)).filter((s) => s.quoteId === orderId || (order.txHash && s.txHash === order.txHash.toLowerCase()));
+    const settlements = (await ledger.listSettlements(500)).filter((s) => s.quoteId === orderId || (order.txHash && s.txHash === order.txHash?.toLowerCase()));
     const entries = (await ledger.listLedgerEntries(500)).filter((e) => e.quoteId === orderId || (payout?.payoutId && e.payoutId === payout.payoutId));
+
+    // Fetch live Paycrest order status if available
+    let paycrestStatus: any = null;
+    if (order.paycrestOrderId) {
+        paycrestStatus = await paycrest.getOrder(order.paycrestOrderId);
+    }
 
     return res.json({
         order,
         payout: payout || null,
         settlements,
         ledgerEntries: entries,
+        paycrestStatus,
         diagnostics: {
             hasOrderTxHash: Boolean(order.txHash),
             settlementCount: settlements.length,
@@ -156,6 +219,7 @@ orderRouter.get("/v1/orders/:orderId/debug", async (req, res) => {
             orderStatus: order.status,
             payoutStatus: payout?.status || null,
             failureReason: order.failureReason || payout?.failureReason || null,
+            paycrestOrderId: order.paycrestOrderId || null,
         },
     });
 });
@@ -165,7 +229,7 @@ const disputeSchema = z.object({
     requestedBy: z.string().optional(),
 });
 
-// ----- POST /v1/orders/:orderId/dispute  —  open a reconciliation/dispute record on order ------
+// ----- POST /v1/orders/:orderId/dispute ------
 orderRouter.post("/v1/orders/:orderId/dispute", async (req, res) => {
     const parsed = disputeSchema.safeParse(req.body || {});
     if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
@@ -179,7 +243,7 @@ orderRouter.post("/v1/orders/:orderId/dispute", async (req, res) => {
     return res.json({ ok: true, order: updated, action: "dispute_opened" });
 });
 
-// ----- POST /v1/orders/:orderId/refund  —  mark payout failure path and refund pending ------
+// ----- POST /v1/orders/:orderId/refund ------
 orderRouter.post("/v1/orders/:orderId/refund", async (req, res) => {
     const order = await ledger.getOrder(req.params.orderId);
     if (!order) return res.status(404).json({ error: "order_not_found" });

@@ -10,6 +10,7 @@ import { settlementRouter } from "./routes/settlement.js";
 import { watcherRouter } from "./routes/watcher.js";
 import { orderRouter } from "./routes/order.js";
 import { ledger } from "./lib/ledger.js";
+import { startExpiryWorker } from "./lib/expiryWorker.js";
 import { requirePaidAccess } from "./middleware/access.js";
 
 const app = express();
@@ -31,6 +32,7 @@ app.use(requirePaidAccess(process.env.X402_PRICE_LIQUIDITY || "$0.005"), liquidi
 app.use(requirePaidAccess(process.env.X402_PRICE_SETTLEMENT || "$0.005"), settlementRouter);
 
 ledger.init().then(() => {
+  startExpiryWorker();
   app.listen(config.port, () => {
     console.log(`[clova-api] listening on :${config.port}`);
   });

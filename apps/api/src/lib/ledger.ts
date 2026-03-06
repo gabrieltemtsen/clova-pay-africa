@@ -64,6 +64,7 @@ export type OfframpOrder = {
   recipientAccount: string;
   recipientBankCode: string;
   recipientCode?: string;
+  paycrestOrderId?: string;   // Paycrest order ID returned when the order is created
   status: "awaiting_deposit" | "confirming" | "paid_out" | "settled" | "failed" | "expired";
   payoutId?: string;
   transferCode?: string;
@@ -98,6 +99,7 @@ type Ledger = {
   getOrder(orderId: string): Promise<OfframpOrder | undefined>;
   updateOrder(orderId: string, patch: Partial<OfframpOrder>): Promise<OfframpOrder | undefined>;
   listOrders(limit?: number): Promise<OfframpOrder[]>;
+  listStaleAwaitingOrders(beforeTimestamp: number): Promise<OfframpOrder[]>;
 };
 
 class MemoryLedger implements Ledger {
@@ -159,6 +161,11 @@ class MemoryLedger implements Ledger {
   }
   async listOrders(limit = 200) {
     return Array.from(this.orders.values()).sort((a, b) => b.createdAt - a.createdAt).slice(0, limit);
+  }
+  async listStaleAwaitingOrders(beforeTimestamp: number): Promise<OfframpOrder[]> {
+    return Array.from(this.orders.values()).filter(
+      (o) => o.status === "awaiting_deposit" && o.expiresAt <= beforeTimestamp,
+    );
   }
 }
 
@@ -240,11 +247,15 @@ class PostgresLedger implements Ledger {
         transfer_code text,
         tx_hash text,
         failure_reason text,
+        paycrest_order_id text,
         expires_at bigint not null,
         created_at bigint not null,
         updated_at bigint not null
       );
       create index if not exists idx_order_status on offramp_orders(status);
+      create index if not exists idx_order_expires on offramp_orders(expires_at) where status = 'awaiting_deposit';
+      -- safe migration: add column to existing tables if not already present
+      alter table if exists offramp_orders add column if not exists paycrest_order_id text;
     `);
   }
 
@@ -290,7 +301,9 @@ class PostgresLedger implements Ledger {
       rate: r.rate, feeBps: Number(r.fee_bps), feeNgn: r.fee_ngn, receiveNgn: r.receive_ngn,
       depositAddress: r.deposit_address, recipientName: r.recipient_name,
       recipientAccount: r.recipient_account, recipientBankCode: r.recipient_bank_code,
-      recipientCode: r.recipient_code || undefined, status: r.status,
+      recipientCode: r.recipient_code || undefined,
+      paycrestOrderId: r.paycrest_order_id || undefined,
+      status: r.status,
       payoutId: r.payout_id || undefined, transferCode: r.transfer_code || undefined,
       txHash: r.tx_hash || undefined, failureReason: r.failure_reason || undefined,
       expiresAt: Number(r.expires_at), createdAt: Number(r.created_at), updatedAt: Number(r.updated_at),
@@ -388,12 +401,16 @@ class PostgresLedger implements Ledger {
   async putOrder(o: OfframpOrder) {
     await this.pool.query(
       `insert into offramp_orders (order_id,asset,amount_crypto,rate,fee_bps,fee_ngn,receive_ngn,deposit_address,
-       recipient_name,recipient_account,recipient_bank_code,recipient_code,status,payout_id,transfer_code,tx_hash,failure_reason,expires_at,created_at,updated_at)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
-       on conflict (order_id) do update set status=excluded.status,recipient_code=excluded.recipient_code,payout_id=excluded.payout_id,
-       transfer_code=excluded.transfer_code,tx_hash=excluded.tx_hash,failure_reason=excluded.failure_reason,updated_at=excluded.updated_at`,
+       recipient_name,recipient_account,recipient_bank_code,recipient_code,paycrest_order_id,
+       status,payout_id,transfer_code,tx_hash,failure_reason,expires_at,created_at,updated_at)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
+       on conflict (order_id) do update set status=excluded.status,recipient_code=excluded.recipient_code,
+       paycrest_order_id=excluded.paycrest_order_id,payout_id=excluded.payout_id,
+       transfer_code=excluded.transfer_code,tx_hash=excluded.tx_hash,failure_reason=excluded.failure_reason,
+       updated_at=excluded.updated_at`,
       [o.orderId, o.asset, o.amountCrypto, o.rate, o.feeBps, o.feeNgn, o.receiveNgn, o.depositAddress,
-      o.recipientName, o.recipientAccount, o.recipientBankCode, o.recipientCode || null, o.status,
+      o.recipientName, o.recipientAccount, o.recipientBankCode, o.recipientCode || null,
+      o.paycrestOrderId || null, o.status,
       o.payoutId || null, o.transferCode || null, o.txHash || null, o.failureReason || null,
       o.expiresAt, o.createdAt, o.updatedAt],
     );
@@ -413,6 +430,14 @@ class PostgresLedger implements Ledger {
 
   async listOrders(limit = 200) {
     const r = await this.pool.query(`select * from offramp_orders order by created_at desc limit $1`, [limit]);
+    return r.rows.map((x: any) => this.rowToOrder(x));
+  }
+
+  async listStaleAwaitingOrders(beforeTimestamp: number): Promise<OfframpOrder[]> {
+    const r = await this.pool.query(
+      `select * from offramp_orders where status = 'awaiting_deposit' and expires_at <= $1 limit 500`,
+      [beforeTimestamp],
+    );
     return r.rows.map((x: any) => this.rowToOrder(x));
   }
 }
