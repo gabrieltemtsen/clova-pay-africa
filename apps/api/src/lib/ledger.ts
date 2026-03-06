@@ -8,7 +8,7 @@ export type PayoutRecord = {
   recipientCode: string;
   reason?: string;
   status: "processing" | "settled" | "failed";
-  provider: "paystack";
+  provider: "paystack" | "paycrest";
   transferCode?: string;
   transferRef?: string;
   failureReason?: string;
