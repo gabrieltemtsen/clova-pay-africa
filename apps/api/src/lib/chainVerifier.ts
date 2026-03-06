@@ -27,6 +27,9 @@ const TOKEN_DECIMALS: Record<string, number> = {
     USDC_BASE: 6,
 };
 
+// USDCx contract on Stacks mainnet (Wrapped USD Coin by Circle via AllBridge)
+const USDCX_STACKS_CONTRACT = process.env.USDCX_STACKS_CONTRACT || "SP3K8BC0PPEVCV7NZ6QSRWPQ2JE9E5B6N3PA0KBR9.usdc";
+
 // RPC endpoints per chain
 function getRpcUrl(asset: string): string {
     switch (asset) {
@@ -34,6 +37,8 @@ function getRpcUrl(asset: string): string {
             return config.rpcUrls.celo;
         case "USDC_BASE":
             return config.rpcUrls.base;
+        case "USDCX_STACKS":
+            return config.rpcUrls.stacks;
         default:
             throw new Error(`unsupported_asset: ${asset}`);
     }
@@ -50,6 +55,119 @@ export type VerificationResult = {
     blockNumber?: number;
 };
 
+// ── STACKS VERIFICATION ────────────────────────────────────────────────────
+// USDCx has 6 decimals on Stacks
+const USDCX_DECIMALS = 6;
+
+async function verifyStacksDeposit(opts: {
+    txHash: string;
+    expectedAmount: string;
+    expectedRecipient: string; // Stacks principal (contract or address)
+    minConfirmations: number;
+}): Promise<VerificationResult> {
+    const apiBase = config.rpcUrls.stacks;
+
+    try {
+        // 1. Fetch transaction from Hiro API
+        const txRes = await fetch(`${apiBase}/extended/v1/tx/${opts.txHash}`, {
+            headers: { Accept: "application/json" },
+            signal: AbortSignal.timeout(10000),
+        });
+
+        if (!txRes.ok) {
+            if (txRes.status === 404) return { verified: false, error: "tx_not_found_or_pending" };
+            throw new Error(`stacks_api_http_${txRes.status}`);
+        }
+
+        const tx: any = await txRes.json();
+
+        // 2. Check status
+        if (tx.tx_status === "pending") return { verified: false, error: "tx_not_found_or_pending" };
+        if (tx.tx_status !== "success") return { verified: false, error: `tx_failed: ${tx.tx_status}` };
+
+        // 3. Check confirmations
+        const confirmations = Number(tx.block_height ? 1 : 0); // simplification; real check below
+        const blockHeight = Number(tx.block_height || 0);
+
+        if (blockHeight > 0) {
+            // Fetch current block height
+            const infoRes = await fetch(`${apiBase}/v2/info`, {
+                signal: AbortSignal.timeout(5000),
+            });
+            if (infoRes.ok) {
+                const info: any = await infoRes.json();
+                const currentHeight = Number(info.stacks_tip_height || 0);
+                const confs = currentHeight - blockHeight + 1;
+                if (confs < opts.minConfirmations) {
+                    return {
+                        verified: false,
+                        error: `insufficient_confirmations: ${confs}/${opts.minConfirmations}`,
+                        confirmations: confs,
+                        blockNumber: blockHeight,
+                    };
+                }
+            }
+        }
+
+        // 4. Find fungible token transfer event to our contract
+        const events: any[] = tx.events || [];
+        const transferEvent = events.find((e: any) => {
+            if (e.event_type !== "fungible_token_asset") return false;
+            const asset = e.asset || {};
+            if (asset.asset_event_type !== "transfer") return false;
+            // Asset ID format: "SP....contract-name::token-name"
+            const assetId = String(asset.asset_id || "").toLowerCase();
+            const contractPart = USDCX_STACKS_CONTRACT.toLowerCase().split("::")[0];
+            if (!assetId.startsWith(contractPart)) return false;
+            // Recipient must be our deposit contract
+            const recipientLower = String(asset.recipient || "").toLowerCase();
+            return recipientLower === opts.expectedRecipient.toLowerCase();
+        });
+
+        if (!transferEvent) {
+            return {
+                verified: false,
+                error: `no_usdcx_transfer_to_${opts.expectedRecipient}`,
+                blockNumber: blockHeight,
+            };
+        }
+
+        // 5. Verify amount (USDCx has 6 decimals)
+        const amountRaw = Number(transferEvent.asset?.amount || 0);
+        const amountOnChain = amountRaw / Math.pow(10, USDCX_DECIMALS);
+        const expectedAmount = Number(opts.expectedAmount);
+        const tolerance = expectedAmount * 0.01;
+
+        if (amountOnChain < expectedAmount - tolerance) {
+            return {
+                verified: false,
+                error: `amount_mismatch: on-chain=${amountOnChain}, expected=${expectedAmount}`,
+                from: transferEvent.asset?.sender,
+                to: transferEvent.asset?.recipient,
+                amountOnChain: amountOnChain.toString(),
+                blockNumber: blockHeight,
+            };
+        }
+
+        console.log(`[verifier] ✅ Stacks tx ${opts.txHash.slice(0, 16)}... verified: ${amountOnChain} USDCx`);
+        return {
+            verified: true,
+            from: transferEvent.asset?.sender,
+            to: transferEvent.asset?.recipient,
+            tokenContract: USDCX_STACKS_CONTRACT,
+            amountOnChain: amountOnChain.toString(),
+            confirmations,
+            blockNumber: blockHeight,
+        };
+
+    } catch (err: any) {
+        console.error("[verifier] Stacks API error:", err.message);
+        return { verified: false, error: `stacks_api_error: ${err.message}` };
+    }
+}
+
+// ── EVM VERIFICATION ───────────────────────────────────────────────────────
+
 /**
  * Verify a transaction on-chain via JSON-RPC.
  */
@@ -60,6 +178,16 @@ export async function verifyDeposit(opts: {
     expectedRecipient: string;
     minConfirmations: number;
 }): Promise<VerificationResult> {
+    // Route Stacks transactions to Stacks-specific verifier
+    if (opts.asset === "USDCX_STACKS") {
+        return verifyStacksDeposit({
+            txHash: opts.txHash,
+            expectedAmount: opts.expectedAmount,
+            expectedRecipient: opts.expectedRecipient,
+            minConfirmations: opts.minConfirmations,
+        });
+    }
+
     const rpcUrl = getRpcUrl(opts.asset);
     const expectedToken = TOKEN_CONTRACTS[opts.asset]?.toLowerCase();
     const decimals = TOKEN_DECIMALS[opts.asset];
