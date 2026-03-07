@@ -302,9 +302,9 @@ export default function Home() {
             viewport={{ once: true }}
             className="glassmorphism rounded-[40px] p-12 md:p-20 text-center border border-white/10 relative overflow-hidden"
           >
-            <h2 className="text-4xl md:text-6xl font-bold mb-6 text-balance">Crypto in. Naira out.</h2>
+            <h2 className="text-4xl md:text-6xl font-bold mb-6 text-balance">Crypto in. African fiat out.</h2>
             <p className="text-xl text-gray-400 mb-10 max-w-2xl mx-auto">
-              Three stablecoin rails. One API. NGN in any Nigerian bank account.
+              Three stablecoin rails. One API. Local currency in bank accounts across Africa — Nigeria live, more corridors shipping.
             </p>
             <div className="flex flex-col sm:flex-row justify-center items-center gap-4">
               <Link href="/docs/quickstart" className="h-14 px-8 rounded-full bg-white text-black font-bold flex items-center justify-center hover:scale-105 transition-transform w-full sm:w-auto">

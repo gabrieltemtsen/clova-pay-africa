@@ -17,7 +17,7 @@ export const Footer = () => {
                             <span className="font-bold text-xl tracking-tight">ClovaPay</span>
                         </Link>
                         <p className="text-gray-400 text-sm leading-relaxed mb-6">
-                            Crypto-to-fiat offramp for Africa. Send cUSD, USDC or USDCx — receive naira directly in any Nigerian bank account.
+                            Crypto-to-fiat offramp for Africa. Send cUSD, USDC or USDCx — receive local currency directly in any African bank account.
                         </p>
                         <div className="flex items-center gap-4">
                             <a href="https://x.com/gabe_temtsen" target="_blank" rel="noreferrer"
