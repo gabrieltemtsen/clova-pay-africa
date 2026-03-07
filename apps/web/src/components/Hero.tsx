@@ -42,7 +42,7 @@ export const Hero = () => {
                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
                         <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
                     </span>
-                    Phase 1 live · NGN corridor open
+                    Phase 1 live · Nigeria open · more corridors coming
                 </motion.div>
 
                 {/* Headline */}
@@ -53,7 +53,7 @@ export const Hero = () => {
                     animate="visible"
                 >
                     <motion.span variants={fadeInUp} className="block">Send crypto.</motion.span>
-                    <motion.span variants={fadeInUp} className="block gradient-text mt-2">Receive naira.</motion.span>
+                    <motion.span variants={fadeInUp} className="block gradient-text mt-2">Get paid in Africa.</motion.span>
                 </motion.h1>
 
                 <motion.p
@@ -62,7 +62,7 @@ export const Hero = () => {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.6, delay: 0.2 }}
                 >
-                    Clova Pay Africa converts stablecoins into Nigerian Naira and lands the money directly in a bank account — automatically. No manual steps. No middlemen holding your funds.
+                    Clova Pay Africa converts stablecoins into local fiat and lands the money directly in a bank account — automatically. Nigeria is live. More African corridors coming.
                 </motion.p>
 
                 <motion.div
