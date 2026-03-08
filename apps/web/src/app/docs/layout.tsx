@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, Code, Zap } from "lucide-react";
+import { BookOpen, Github } from "lucide-react";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 
@@ -13,15 +13,6 @@ const sidebarLinks = [
         items: [
             { name: "Introduction", href: "/docs" },
             { name: "Quickstart", href: "/docs/quickstart" },
-        ],
-    },
-    {
-        title: "API Reference",
-        icon: <Code className="w-4 h-4" />,
-        items: [
-            { name: "Authentication", href: "/docs/api/auth" },
-            { name: "Create Order", href: "/docs/api/orders" },
-            { name: "Webhooks", href: "/docs/api/webhooks" },
         ],
     },
 ];
@@ -55,8 +46,8 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
                                                     <Link
                                                         href={link.href}
                                                         className={`block px-3 py-2 rounded-lg text-sm transition-colors ${isActive
-                                                                ? "bg-blue-600/10 text-blue-400 font-medium"
-                                                                : "text-gray-400 hover:text-white hover:bg-white/5"
+                                                            ? "bg-blue-600/10 text-blue-400 font-medium"
+                                                            : "text-gray-400 hover:text-white hover:bg-white/5"
                                                             }`}
                                                     >
                                                         {link.name}
@@ -69,16 +60,15 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
                             ))}
                         </div>
 
-                        <div className="mt-12 p-4 rounded-xl glassmorphism border border-emerald-500/20 bg-emerald-500/5">
-                            <div className="flex items-center gap-2 text-emerald-400 mb-2">
-                                <Zap className="w-4 h-4" />
-                                <span className="font-semibold text-sm">Need Help?</span>
-                            </div>
-                            <p className="text-xs text-gray-400 mb-3">Join our Discord community or contact developer support.</p>
-                            <button className="w-full py-2 rounded text-xs font-semibold bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 transition-colors">
-                                Get Support
-                            </button>
-                        </div>
+                        <a
+                            href="https://github.com/gabrieltemtsen/clova-pay-africa"
+                            target="_blank"
+                            rel="noreferrer"
+                            className="mt-12 flex items-center gap-2 px-4 py-3 rounded-xl glassmorphism border border-white/10 text-gray-400 hover:text-white hover:border-white/20 transition-colors text-sm"
+                        >
+                            <Github className="w-4 h-4" />
+                            View on GitHub
+                        </a>
                     </div>
                 </aside>
 
