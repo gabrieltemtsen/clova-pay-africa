@@ -55,9 +55,9 @@ export const Navbar = () => {
 
                     {/* CTA Buttons */}
                     <div className="hidden md:flex items-center gap-4">
-                        <Link href="/docs" className="text-sm font-medium text-gray-300 hover:text-white transition-colors">
-                            Login
-                        </Link>
+                        <a href="https://gabe-dev.vercel.app" target="_blank" rel="noreferrer" className="text-sm font-medium text-gray-300 hover:text-white transition-colors">
+                            Get API Key
+                        </a>
                         <Link
                             href="/docs"
                             className="group relative inline-flex h-10 items-center justify-center overflow-hidden rounded-full bg-blue-600 px-6 font-medium text-neutral-50 duration-300 hover:bg-blue-500"

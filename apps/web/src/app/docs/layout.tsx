@@ -13,6 +13,7 @@ const sidebarLinks = [
         items: [
             { name: "Introduction", href: "/docs" },
             { name: "Quickstart", href: "/docs/quickstart" },
+            { name: "Playground", href: "/docs/playground" },
         ],
     },
 ];
