@@ -16,6 +16,7 @@ export type PaycrestOrderInput = {
     };
     reference: string;
     returnAddress: string;  // refund address if order fails
+    webhookUrl?: string;    // URL PayCrest POST order status events to
 };
 
 export type PaycrestOrderResponse = {
@@ -62,12 +63,13 @@ async function paycrestRequest(
 }
 
 export class PaycrestProvider {
-    async getExchangeRate(token: string, amount: string, currency: string): Promise<string> {
+    async getExchangeRate(token: string, amount: string, currency: string, network?: string): Promise<string> {
         if (isMock()) {
             return "1450.50";
         }
         try {
-            const data = await paycrestRequest("GET", `/rates/${token}/${amount}/${currency}`);
+            const query = network ? `?network=${network}` : "";
+            const data = await paycrestRequest("GET", `/rates/${token}/${amount}/${currency}${query}`);
             return String(data);
         } catch (e: any) {
             console.error("[paycrest] getExchangeRate error:", e?.response?.data || e.message);
@@ -75,14 +77,43 @@ export class PaycrestProvider {
         }
     }
 
+    /** Fetch the live rate from PayCrest for a specific token+network combo. Returns null in mock mode. */
+    async getLiveRate(token: string, amount: string, currency: string, network: string): Promise<string | null> {
+        if (isMock()) return null;
+        try {
+            const data = await paycrestRequest("GET", `/rates/${token}/${amount}/${currency}?network=${network}`);
+            const rate = String(data);
+            console.log(`[paycrest] live rate for ${token}/${network}: ${rate}`);
+            return rate;
+        } catch (e: any) {
+            console.error("[paycrest] getLiveRate error:", e?.response?.data || e.message);
+            return null;
+        }
+    }
+
     async getSupportedInstitutions(currency = "NGN"): Promise<Array<{ name: string; code: string }>> {
         if (isMock()) {
             return [
-                { name: "Access Bank", code: "044" },
-                { name: "Guaranty Trust Bank", code: "058" },
-                { name: "United Bank For Africa", code: "033" },
-                { name: "Zenith Bank", code: "057" },
-                { name: "First Bank of Nigeria", code: "011" },
+                { name: "Access Bank", code: "ABNGNGLA" },
+                { name: "Guaranty Trust Bank", code: "GTBINGLA" },
+                { name: "United Bank for Africa", code: "UNAFNGLA" },
+                { name: "Zenith Bank", code: "ZEIBNGLA" },
+                { name: "First Bank Of Nigeria", code: "FBNINGLA" },
+                { name: "OPay", code: "OPAYNGPC" },
+                { name: "Kuda Microfinance Bank", code: "KUDANGPC" },
+                { name: "PalmPay", code: "PALMNGPC" },
+                { name: "Moniepoint MFB", code: "MONINGPC" },
+                { name: "Wema Bank", code: "WEMANGLA" },
+                { name: "Sterling Bank", code: "NAMENGLA" },
+                { name: "FCMB", code: "FCMBNGLA" },
+                { name: "Fidelity Bank", code: "FIDTNGLA" },
+                { name: "Stanbic IBTC Bank", code: "SBICNGLA" },
+                { name: "Union Bank", code: "UBNINGLA" },
+                { name: "Polaris Bank", code: "PRDTNGLA" },
+                { name: "Keystone Bank", code: "PLNINGLA" },
+                { name: "Ecobank Bank", code: "ECOCNGLA" },
+                { name: "Providus Bank", code: "PROVNGLA" },
+                { name: "Safe Haven MFB", code: "SAHVNGPC" },
             ];
         }
         try {
@@ -114,7 +145,18 @@ export class PaycrestProvider {
             };
         }
         try {
-            const data = await paycrestRequest("POST", "/sender/orders", input);
+            const body: Record<string, unknown> = {
+                amount: Number(input.amountCrypto),  // PayCrest expects `amount` as a number
+                token: input.token,
+                network: input.network,
+                rate: input.rate,
+                recipient: input.recipient,
+                reference: input.reference,
+                returnAddress: input.returnAddress,
+            };
+            if (input.webhookUrl) body.webhookUrl = input.webhookUrl;
+
+            const data = await paycrestRequest("POST", "/sender/orders", body);
             return {
                 id: String(data?.id || data?.orderId || ""),
                 status: String(data?.status || "pending"),
