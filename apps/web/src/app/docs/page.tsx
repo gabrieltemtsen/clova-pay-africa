@@ -25,17 +25,11 @@ export default function DocsIntroduction() {
             </p>
 
             {/* What you can do */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 my-10">
-                <div className="p-6 rounded-2xl border border-white/10 glassmorphism hover:border-blue-500/30 transition-colors">
+            <div className="my-10">
+                <div className="p-6 rounded-2xl border border-white/10 glassmorphism hover:border-blue-500/30 transition-colors max-w-lg">
                     <h3 className="text-lg font-bold text-white mb-2">Offramp stablecoins</h3>
                     <p className="text-gray-400 text-sm mb-4">Get a quote, create an order, send crypto to the deposit address. Naira hits the bank account automatically once the deposit is confirmed on-chain.</p>
                     <Link href="/docs/quickstart" className="text-blue-400 text-sm font-medium hover:text-blue-300">Quickstart guide →</Link>
-                </div>
-
-                <div className="p-6 rounded-2xl border border-white/10 glassmorphism hover:border-purple-500/30 transition-colors">
-                    <h3 className="text-lg font-bold text-white mb-2">Provide liquidity</h3>
-                    <p className="text-gray-400 text-sm mb-4">Register as a liquidity provider, set your fee rate, and earn on every settlement that routes through your balance.</p>
-                    <span className="text-purple-400 text-sm font-medium">LP guide coming soon</span>
                 </div>
             </div>
 
