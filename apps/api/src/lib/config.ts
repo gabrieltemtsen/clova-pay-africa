@@ -31,6 +31,8 @@ export const config = {
   paycrestApiKey: process.env.PAYCREST_API_KEY || "",
   paycrestBaseUrl: process.env.PAYCREST_BASE_URL || "https://api.paycrest.io/v1",
   paycrestWebhookSecret: process.env.PAYCREST_WEBHOOK_SECRET || "",
+  // URL PayCrest will POST order status events to. Set to your ngrok/public URL in .env
+  paycrestWebhookUrl: process.env.PAYCREST_WEBHOOK_URL || "",
 
   // USDC/Base reserve wallet used to front Stacks payouts
   // (USDCx received via Clarity contract; Paycrest order is funded from this reserve)

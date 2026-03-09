@@ -10,9 +10,11 @@ webhookRouter.post("/v1/webhooks/paystack", async (req, res) => {
   return res.json({ ok: true, ignored: true, note: "Paystack integration is paused." });
 });
 
-// New PayCrest webhook endpoint
+// PayCrest webhook: https://docs.paycrest.io/implementation-guides/sender-api-integration#webhook-implementation
+// Header: X-Paycrest-Signature (HMAC-SHA256 of rawBody using PAYCREST_API_KEY as secret)
+// Payload: { event: "order.fulfilled" | "order.failed", data: { id, reference, status, ... } }
 webhookRouter.post("/v1/webhooks/paycrest", async (req, res) => {
-  const signature = String(req.headers["x-paycrest-signature"] || req.headers["x-signature"] || "");
+  const signature = String(req.headers["x-paycrest-signature"] || "");
   const rawBody = String((req as any).rawBody || "");
 
   if (!paycrest.verifyWebhook(rawBody, signature)) {
@@ -24,29 +26,31 @@ webhookRouter.post("/v1/webhooks/paycrest", async (req, res) => {
 
   if (!eventName.startsWith("order.")) return res.json({ ok: true, ignored: true });
 
-  // According to PayCrest docs, webhook payload has:
-  // { event: "order.fulfilled", orderId: "UUID", status: "fulfilled", data: { txHash: ... } }
+  // PayCrest sends order reference (which we set to our orderId) in data.reference
+  const reference = String(payload?.data?.reference || payload?.reference || payload?.orderId || "");
+  if (!reference) return res.json({ ok: true, ignored: true });
 
-  const orderId = String(payload?.orderId || payload?.data?.reference || payload?.reference || "");
-  if (!orderId) return res.json({ ok: true, ignored: true });
+  // Look up our internal order by orderId (we set reference = orderId when creating)
+  const order = await ledger.getOrder(reference);
+  if (!order) {
+    console.warn("[webhook/paycrest] no order found for reference:", reference);
+    return res.json({ ok: true, ignored: true });
+  }
 
-  // Finding abstract payout or quote by ID
-  const payout = await ledger.findPayoutByTransferRef(orderId);
-  if (!payout) return res.json({ ok: true, ignored: true });
-
-  if (eventName === "order.fulfilled" || payload?.status === "fulfilled") {
-    await ledger.updatePayout(payout.payoutId, { status: "settled" });
-    await ledger.updateOrder(payout.quoteId, { status: "settled", txHash: payload?.data?.txHash });
-  } else if (eventName === "order.failed" || payload?.status === "failed") {
-    const reason = String(payload?.data?.reason || payload?.reason || "paycrest_order_failed");
-    await ledger.updatePayout(payout.payoutId, {
-      status: "failed",
-      failureReason: reason,
+  if (eventName === "order.fulfilled") {
+    await ledger.updateOrder(order.orderId, {
+      status: "settled",
+      txHash: payload?.data?.txHash || order.txHash,
     });
-    await ledger.updateOrder(payout.quoteId, {
-      status: "failed",
-      failureReason: reason,
-    });
+    if (order.payoutId) {
+      await ledger.updatePayout(order.payoutId, { status: "settled" });
+    }
+  } else if (eventName === "order.failed") {
+    const reason = String(payload?.data?.reason || payload?.data?.message || "paycrest_order_failed");
+    await ledger.updateOrder(order.orderId, { status: "failed", failureReason: reason });
+    if (order.payoutId) {
+      await ledger.updatePayout(order.payoutId, { status: "failed", failureReason: reason });
+    }
   }
 
   return res.json({ ok: true });
