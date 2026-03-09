@@ -22,18 +22,27 @@ export default function DocsQuickstart() {
             {/* Auth */}
             <h2 className="text-2xl font-bold mt-10 mb-3">Authentication</h2>
             <p className="text-gray-300 mb-4 text-sm leading-relaxed">
-                Protected endpoints use <strong className="text-white">x402 micropayments</strong> — your agent attaches a payment proof in the <code className="text-blue-300 bg-white/5 px-1 rounded">x-payment</code> header. For internal or admin use, pass your <code className="text-blue-300 bg-white/5 px-1 rounded">OWNER_API_KEY</code> via <code className="text-blue-300 bg-white/5 px-1 rounded">x-api-key</code> to bypass payment gating entirely.
+                There are two ways to access protected endpoints:
             </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <div className="p-5 rounded-xl border border-blue-500/20 bg-blue-500/5">
+                    <h3 className="font-bold text-blue-400 mb-2 text-sm">Option 1 — API Key</h3>
+                    <p className="text-xs text-gray-400 leading-relaxed mb-3">
+                        Contact <a href="https://gabe-dev.vercel.app" target="_blank" rel="noreferrer" className="text-blue-400 hover:text-blue-300 underline underline-offset-2">gabedev</a> to request an API key. Pass it via the <code className="text-blue-300 bg-white/5 px-1 rounded">x-api-key</code> header.
+                    </p>
+                    <pre className="text-xs font-mono text-gray-300 bg-black/40 p-3 rounded-lg overflow-x-auto">{`curl ... -H "x-api-key: YOUR_KEY"`}</pre>
+                </div>
+                <div className="p-5 rounded-xl border border-emerald-500/20 bg-emerald-500/5">
+                    <h3 className="font-bold text-emerald-400 mb-2 text-sm">Option 2 — x402 Micropayment</h3>
+                    <p className="text-xs text-gray-400 leading-relaxed mb-3">
+                        Pay per-call using the x402 protocol. Perfect for AI agents — no signup, attach a payment proof in the <code className="text-emerald-300 bg-white/5 px-1 rounded">x-payment</code> header.
+                    </p>
+                    <pre className="text-xs font-mono text-gray-300 bg-black/40 p-3 rounded-lg overflow-x-auto">{`curl ... -H "x-payment: PROOF"`}</pre>
+                </div>
+            </div>
             <div className="bg-[#0d0d0d] p-4 rounded-xl border border-white/10 mb-8 overflow-x-auto">
                 <pre className="text-sm font-mono text-gray-300 leading-relaxed">
-                    {`# Health check — no auth required
-curl https://clova-pay-africa-production.up.railway.app/v1/health
-
-# Protected endpoint — owner bypass
-curl -X POST https://clova-pay-africa-production.up.railway.app/v1/quotes \\
-  -H "x-api-key: YOUR_OWNER_API_KEY" \\
-  -H "Content-Type: application/json" \\
-  -d '{"asset":"USDC_BASE","amountCrypto":"100","destinationCurrency":"NGN"}'`}
+                    {`# Health check — no auth required\ncurl https://clova-pay-africa-production.up.railway.app/v1/health`}
                 </pre>
             </div>
 

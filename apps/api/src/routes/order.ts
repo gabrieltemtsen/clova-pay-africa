@@ -170,13 +170,7 @@ orderRouter.post("/v1/orders", async (req, res) => {
     });
 });
 
-// ----- GET /v1/banks — discover supported payout institutions ------
-orderRouter.get("/v1/banks", async (req, res) => {
-    const currency = String(req.query.currency || "NGN");
-    const institutions = await paycrest.getSupportedInstitutions(currency);
-    return res.json({ currency, institutions });
-});
-
+// Route removed and moved to banks.ts
 // ----- GET /v1/orders  —  list orders ------
 orderRouter.get("/v1/orders", async (_req, res) => {
     return res.json({ orders: await ledger.listOrders() });
