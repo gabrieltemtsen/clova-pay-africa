@@ -104,11 +104,21 @@ orderRouter.post("/v1/orders", async (req, res) => {
         }
 
         try {
+            // In live mode, fetch the rate from PayCrest directly — they validate that the
+            // rate passed to createOrder matches their current rate exactly.
+            // In mock mode, fall back to our CoinGecko-derived rate.
+            const paycrestRate = await paycrest.getLiveRate(
+                paycrestAsset.token,
+                amountCrypto,
+                "NGN",
+                paycrestAsset.network,
+            ) || quote.rate;
+
             const pcOrder = await paycrest.createOrder({
                 amountCrypto,
                 token: paycrestAsset.token,
                 network: paycrestAsset.network,
-                rate: quote.rate,
+                rate: paycrestRate,
                 recipient: {
                     institution: recipient.bankCode,
                     accountIdentifier: recipient.accountNumber,
