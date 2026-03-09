@@ -266,12 +266,12 @@ export default function Home() {
                 <pre className="p-6 text-xs font-mono leading-relaxed overflow-x-auto">
                   <code>
                     <span className="text-gray-500"># 1. Get a quote</span>{"\n"}
-                    <span className="text-purple-400">curl</span> <span className="text-blue-300">-X POST</span> https://api.clovapay.africa/v1/quotes <span className="text-blue-300">\</span>{"\n"}
+                    <span className="text-purple-400">curl</span> <span className="text-blue-300">-X POST</span> https://clova-pay-africa-production.up.railway.app/v1/quotes <span className="text-blue-300">\</span>{"\n"}
                     {"  "}<span className="text-blue-300">-H</span> <span className="text-green-300">&quot;x-api-key: $OWNER_API_KEY&quot;</span> <span className="text-blue-300">\</span>{"\n"}
                     {"  "}<span className="text-blue-300">-d</span> <span className="text-yellow-300">&apos;&#123;&quot;asset&quot;:&quot;USDC_BASE&quot;,&quot;amountCrypto&quot;:&quot;100&quot;,&quot;destinationCurrency&quot;:&quot;NGN&quot;&#125;&apos;</span>{"\n"}
                     {"\n"}
                     <span className="text-gray-500"># 2. Create an order</span>{"\n"}
-                    <span className="text-purple-400">curl</span> <span className="text-blue-300">-X POST</span> https://api.clovapay.africa/v1/orders <span className="text-blue-300">\</span>{"\n"}
+                    <span className="text-purple-400">curl</span> <span className="text-blue-300">-X POST</span> https://clova-pay-africa-production.up.railway.app/v1/orders <span className="text-blue-300">\</span>{"\n"}
                     {"  "}<span className="text-blue-300">-d</span> <span className="text-yellow-300">&apos;&#123;</span>{"\n"}
                     {"    "}<span className="text-yellow-300">&quot;asset&quot;: &quot;USDC_BASE&quot;,</span>{"\n"}
                     {"    "}<span className="text-yellow-300">&quot;amountCrypto&quot;: &quot;100&quot;,</span>{"\n"}

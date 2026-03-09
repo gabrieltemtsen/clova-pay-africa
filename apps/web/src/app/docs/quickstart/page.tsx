@@ -26,11 +26,11 @@ export default function DocsQuickstart() {
             </p>
             <div className="bg-[#0d0d0d] p-4 rounded-xl border border-white/10 mb-8 overflow-x-auto">
                 <pre className="text-sm font-mono text-gray-300 leading-relaxed">
-{`# Health check — no auth required
-curl https://api.clovapay.africa/v1/health
+                    {`# Health check — no auth required
+curl https://clova-pay-africa-production.up.railway.app/v1/health
 
 # Protected endpoint — owner bypass
-curl -X POST https://api.clovapay.africa/v1/quotes \\
+curl -X POST https://clova-pay-africa-production.up.railway.app/v1/quotes \\
   -H "x-api-key: YOUR_OWNER_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{"asset":"USDC_BASE","amountCrypto":"100","destinationCurrency":"NGN"}'`}
@@ -44,7 +44,7 @@ curl -X POST https://api.clovapay.africa/v1/quotes \\
             </p>
             <div className="bg-[#0d0d0d] p-4 rounded-xl border border-white/10 mb-4 overflow-x-auto">
                 <pre className="text-sm font-mono text-gray-300 leading-relaxed">
-{`curl -X POST https://api.clovapay.africa/v1/quotes \\
+                    {`curl -X POST https://clova-pay-africa-production.up.railway.app/v1/quotes \\
   -H "x-api-key: YOUR_OWNER_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{
@@ -80,7 +80,7 @@ curl -X POST https://api.clovapay.africa/v1/quotes \\
             </p>
             <div className="bg-[#0d0d0d] p-4 rounded-xl border border-white/10 mb-4 overflow-x-auto">
                 <pre className="text-sm font-mono text-gray-300 leading-relaxed">
-{`curl -X POST https://api.clovapay.africa/v1/orders \\
+                    {`curl -X POST https://clova-pay-africa-production.up.railway.app/v1/orders \\
   -H "x-api-key: YOUR_OWNER_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{
@@ -135,8 +135,8 @@ curl -X POST https://api.clovapay.africa/v1/quotes \\
             </p>
             <div className="bg-[#0d0d0d] p-4 rounded-xl border border-white/10 mb-8 overflow-x-auto">
                 <pre className="text-sm font-mono text-gray-300 leading-relaxed">
-{`# Poll order status
-curl https://api.clovapay.africa/v1/orders/ord_abc123... \\
+                    {`# Poll order status
+curl https://clova-pay-africa-production.up.railway.app/v1/orders/ord_abc123... \\
   -H "x-api-key: YOUR_OWNER_API_KEY"
 
 # Order statuses: awaiting_deposit → confirming → paid_out → settled
