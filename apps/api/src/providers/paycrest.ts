@@ -16,6 +16,7 @@ export type PaycrestOrderInput = {
     };
     reference: string;
     returnAddress: string;  // refund address if order fails
+    webhookUrl?: string;    // URL PayCrest POST order status events to
 };
 
 export type PaycrestOrderResponse = {
@@ -83,6 +84,12 @@ export class PaycrestProvider {
                 { name: "United Bank For Africa", code: "033" },
                 { name: "Zenith Bank", code: "057" },
                 { name: "First Bank of Nigeria", code: "011" },
+                { name: "OPay", code: "999992" },
+                { name: "Kuda Bank", code: "090267" },
+                { name: "PalmPay", code: "999991" },
+                { name: "Moniepoint", code: "50515" },
+                { name: "Wema Bank", code: "035" },
+                { name: "Sterling Bank", code: "232" },
             ];
         }
         try {

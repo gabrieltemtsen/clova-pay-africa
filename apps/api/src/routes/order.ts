@@ -118,6 +118,7 @@ orderRouter.post("/v1/orders", async (req, res) => {
                 },
                 reference: orderId,
                 returnAddress: returnAddress || config.depositWallets[asset] || "0x0000000000000000000000000000000000000000",
+                webhookUrl: config.paycrestWebhookUrl || undefined,
             });
 
             depositAddress = pcOrder.depositAddress;
