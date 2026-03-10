@@ -163,6 +163,7 @@ export default function PlaygroundPage() {
                                 className="w-full appearance-none bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500/50"
                             >
                                 <option value="USDC_BASE">USDC on Base</option>
+                                <option value="USDCX_STACKS">USDCx on Stacks</option>
                                 <option value="cUSD_CELO">cUSD on Celo</option>
                             </select>
                             <ChevronDown className="absolute right-3 top-3.5 w-4 h-4 text-gray-500 pointer-events-none" />
@@ -201,6 +202,7 @@ export default function PlaygroundPage() {
                                 className="w-full appearance-none bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500/50"
                             >
                                 <option value="USDC_BASE">USDC on Base</option>
+                                <option value="USDCX_STACKS">USDCx on Stacks</option>
                                 <option value="cUSD_CELO">cUSD on Celo</option>
                             </select>
                             <ChevronDown className="absolute right-3 top-3.5 w-4 h-4 text-gray-500 pointer-events-none" />
