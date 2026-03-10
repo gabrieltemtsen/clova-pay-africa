@@ -4,7 +4,7 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { Play, Loader2, ChevronDown } from "lucide-react";
 
-const API_BASE = "https://clova-pay-africa-production.up.railway.app";
+const API_BASE = "http://localhost:8787";
 
 const BANKS = [
     { name: "Access Bank", code: "ABNGNGLA" },
