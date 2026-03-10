@@ -150,11 +150,25 @@ export async function processCredited(input: CreditedInput) {
                     throw new Error("STACKS_RESERVE_WALLET not configured — cannot create Paycrest order for Stacks payout");
                 }
 
+                // Fetch live rate to avoid using expired quote
+                console.log(`[settlement] fetching live USDC/Base → NGN rate for ${order.amountCrypto} USDC`);
+                const liveRate = await paycrest.getLiveRate("USDC", order.amountCrypto, "NGN", "base");
+                const rateToUse = liveRate || order.rate;
+
+                if (!liveRate) {
+                    console.warn(`[settlement] ⚠️ failed to fetch live rate, falling back to order rate ${order.rate}`);
+                } else {
+                    console.log(`[settlement] ✅ live rate: ${liveRate} NGN/USDC (original: ${order.rate})`);
+                }
+
+                // Calculate final NGN payout with live rate
+                const finalReceiveNgn = Number(order.amountCrypto) * Number(rateToUse);
+
                 const pcOrder = await paycrest.createOrder({
                     amountCrypto: order.amountCrypto,
                     token: "USDC",
                     network: "base",
-                    rate: order.rate,
+                    rate: rateToUse,
                     recipient: {
                         institution: order.recipientBankCode,
                         accountIdentifier: order.recipientAccount,
@@ -170,7 +184,7 @@ export async function processCredited(input: CreditedInput) {
                 await ledger.putPayout({
                     payoutId,
                     quoteId: order.orderId,
-                    amountKobo: Math.round(Number(order.receiveNgn) * 100),
+                    amountKobo: Math.round(finalReceiveNgn * 100),
                     currency: "NGN",
                     recipientCode: order.orderId,
                     reason: `Stacks USDCx offramp ${order.orderId}`,
@@ -186,6 +200,8 @@ export async function processCredited(input: CreditedInput) {
                     paycrestOrderId: pcOrder.id,
                     payoutId,
                     transferCode: pcOrder.id,
+                    rate: rateToUse,
+                    receiveNgn: finalReceiveNgn.toString(),
                 });
 
                 console.log(`[settlement] Stacks order ${order.orderId} → Paycrest order ${pcOrder.id}`);

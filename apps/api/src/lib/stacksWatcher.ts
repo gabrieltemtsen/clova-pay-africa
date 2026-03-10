@@ -14,7 +14,7 @@ import { processCredited } from "./settlementEngine.js";
 
 const USDCX_CONTRACT = (
     process.env.USDCX_STACKS_CONTRACT ||
-    "SP3K8BC0PPEVCV7NZ6QSRWPQ2JE9E5B6N3PA0KBR9.usdc"
+    "SP120SBRBQJ00MCWS7TM5R8WJNTTKD5K0HFRC2CNE.usdcx"
 ).toLowerCase();
 
 let _timer: ReturnType<typeof setInterval> | null = null;
@@ -51,8 +51,15 @@ function extractOrderId(tx: any): string | null {
                 arg.repr &&
                 typeof arg.repr === "string"
             ) {
+                // Clarity optional type format: (some 0x...)
+                let hexValue = arg.repr;
+                const someMatch = arg.repr.match(/\(some\s+(0x[a-fA-F0-9]+)\)/);
+                if (someMatch) {
+                    hexValue = someMatch[1];
+                }
+
                 // Clarity repr: 0x... or "ord_xxx"
-                const decoded = decodeMemo(arg.repr.replace(/^"|"$/g, ""));
+                const decoded = decodeMemo(hexValue.replace(/^"|"$/g, ""));
                 if (decoded.startsWith("ord_")) return decoded;
             }
         }
@@ -123,8 +130,25 @@ async function poll() {
             // Only process successful transactions
             if (tx.tx_status !== "success") continue;
 
+            let events: any[] = tx.events || [];
+            if (events.length === 0 && tx.event_count > 0) {
+                try {
+                    console.log(`[stacksWatcher] fetching full details for tx ${tx.tx_id.slice(0, 16)}...`);
+                    const fullTxRes = await fetch(`${apiBase}/extended/v1/tx/${tx.tx_id}`);
+                    if (fullTxRes.ok) {
+                        const fullTx = await fullTxRes.json();
+                        events = fullTx.events || [];
+                        // Overwrite order extraction payload
+                        tx.contract_call = fullTx.contract_call || tx.contract_call;
+                        tx.post_conditions = fullTx.post_conditions || tx.post_conditions;
+                        tx.token_transfer = fullTx.token_transfer || tx.token_transfer;
+                    }
+                } catch (e) {
+                    console.error(`[stacksWatcher] failed to fetch full tx ${tx.tx_id}:`, e);
+                }
+            }
+
             // Look for USDCx fungible token transfer events to our wallet
-            const events: any[] = tx.events || [];
             const usdcxTransfer = events.find((e: any) => {
                 if (e.event_type !== "fungible_token_asset") return false;
                 const asset = e.asset || {};
