@@ -38,6 +38,16 @@ export const config = {
   // (USDCx received via Clarity contract; Paycrest order is funded from this reserve)
   stacksReserveWallet: process.env.STACKS_RESERVE_WALLET || "",
 
+  // Treasury private key — signs USDC/Base transfers to fund PayCrest deposit addresses
+  treasuryPrivateKey: process.env.TREASURY_PRIVATE_KEY || "",
+
+  // USDC contract on Base mainnet
+  baseUsdcContract: process.env.BASE_USDC_CONTRACT || "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+
+  // --- Background workers ---
+  stacksWatcherIntervalMs: Number(process.env.STACKS_WATCHER_INTERVAL_MS || 30000),
+  treasuryFunderIntervalMs: Number(process.env.TREASURY_FUNDER_INTERVAL_MS || 15000),
+
   // --- Paystack (SUSPENDED — kept for reference only) ---
   // paystackMode: "suspended",
   paystackMode: "mock",   // always mock until further notice

@@ -27,7 +27,7 @@ const BANKS = [
     { name: "Safe Haven MFB", code: "SAHVNGPC" },
 ];
 
-function JsonDisplay({ data }: { data: any }) {
+function JsonDisplay({ data }: { data: unknown }) {
     const text = typeof data === "string" ? data : JSON.stringify(data, null, 2);
     return (
         <pre className="text-xs font-mono text-gray-300 bg-[#0a0a0a] p-4 rounded-xl border border-white/10 overflow-x-auto whitespace-pre-wrap leading-relaxed">

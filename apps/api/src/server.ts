@@ -13,6 +13,8 @@ import { watcherRouter } from "./routes/watcher.js";
 import { orderRouter } from "./routes/order.js";
 import { ledger } from "./lib/ledger.js";
 import { startExpiryWorker } from "./lib/expiryWorker.js";
+import { startStacksWatcher } from "./lib/stacksWatcher.js";
+import { startTreasuryFunder } from "./lib/treasuryFunder.js";
 import { requirePaidAccess } from "./middleware/access.js";
 
 const app = express();
@@ -37,6 +39,8 @@ app.use(requirePaidAccess(process.env.X402_PRICE_SETTLEMENT || "$0.005"), settle
 
 ledger.init().then(() => {
   startExpiryWorker();
+  startStacksWatcher();
+  startTreasuryFunder();
   app.listen(config.port, () => {
     console.log(`[clova-api] listening on :${config.port}`);
   });
