@@ -1,5 +1,6 @@
 import "dotenv/config";
 import express from "express";
+import cors from "cors";
 import { config } from "./lib/config.js";
 import { healthRouter } from "./routes/health.js";
 import { banksRouter } from "./routes/banks.js";
@@ -18,6 +19,7 @@ import { startTreasuryFunder } from "./lib/treasuryFunder.js";
 import { requirePaidAccess } from "./middleware/access.js";
 
 const app = express();
+app.use(cors());
 app.use(express.json({
   verify: (req, _res, buf) => {
     (req as any).rawBody = buf.toString("utf8");

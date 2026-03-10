@@ -28,7 +28,7 @@ const TOKEN_DECIMALS: Record<string, number> = {
 };
 
 // USDCx contract on Stacks mainnet (Wrapped USD Coin by Circle via AllBridge)
-const USDCX_STACKS_CONTRACT = process.env.USDCX_STACKS_CONTRACT || "SP3K8BC0PPEVCV7NZ6QSRWPQ2JE9E5B6N3PA0KBR9.usdc";
+const USDCX_STACKS_CONTRACT = process.env.USDCX_STACKS_CONTRACT || "SP120SBRBQJ00MCWS7TM5R8WJNTTKD5K0HFRC2CNE.usdcx";
 
 // RPC endpoints per chain
 function getRpcUrl(asset: string): string {

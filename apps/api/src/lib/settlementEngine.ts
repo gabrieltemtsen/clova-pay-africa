@@ -94,77 +94,157 @@ export async function processCredited(input: CreditedInput) {
             }
             console.log(`[settlement] ✅ Stacks tx verified: ${verification.amountOnChain} USDCx`);
         }
-    }
 
-    // ── IDEMPOTENT SETTLEMENT RECORD ────────────────────────────────────
-    const created = await ledger.createSettlementIfAbsent({
-        settlementId: `st_${randomUUID()}`,
-        quoteId,
-        asset: input.asset,
-        amountCrypto: input.amountCrypto,
-        txHash: input.txHash,
-        confirmations: input.confirmations,
-        source: input.source,
-        status: "credited",
-        createdAt: now,
-        updatedAt: now,
-    });
+        // ── IDEMPOTENT SETTLEMENT RECORD ────────────────────────────────────
+        const created = await ledger.createSettlementIfAbsent({
+            settlementId: `st_${randomUUID()}`,
+            quoteId,
+            asset: input.asset,
+            amountCrypto: input.amountCrypto,
+            txHash: input.txHash,
+            confirmations: input.confirmations,
+            source: input.source,
+            status: "credited",
+            createdAt: now,
+            updatedAt: now,
+        });
 
-    if (!created.inserted) {
-        return { ...created, idempotent: true };
-    }
-
-    if (!order || order.status !== "awaiting_deposit") {
-        return { ...created, idempotent: false, warning: "order_not_found_or_wrong_status" };
-    }
-
-    // Mark as confirming
-    await ledger.updateOrder(order.orderId, { status: "confirming", txHash: input.txHash });
-
-    // ── PAYOUT ROUTING ────────────────────────────────────────────────────
-
-    // cUSD_CELO / USDC_BASE — Paycrest order was already created at order time.
-    // Just update the ledger; Paycrest webhook will flip status to settled/failed.
-    if (order.asset === "cUSD_CELO" || order.asset === "USDC_BASE") {
-        if (!order.paycrestOrderId) {
-            // Edge case: order was created before Paycrest integration.
-            // Fall through to legacy flow below.
-            console.warn(`[settlement] order ${order.orderId} has no paycrestOrderId — falling back to ad-hoc Paycrest order`);
-        } else {
-            console.log(`[settlement] ✅ deposit confirmed for Paycrest order ${order.paycrestOrderId} — awaiting Paycrest webhook`);
-            return {
-                ...created,
-                idempotent: false,
-                orderId: order.orderId,
-                paycrestOrderId: order.paycrestOrderId,
-                status: "confirming",
-                note: "Paycrest is handling payout — final status via webhook",
-            };
+        if (!created.inserted) {
+            return { ...created, idempotent: true };
         }
-    }
 
-    // USDCX_STACKS — create a fresh Paycrest order using USDC/Base reserves.
-    if (order.asset === "USDCX_STACKS") {
-        try {
-            const reserveWallet = config.stacksReserveWallet;
-            if (!reserveWallet) {
-                throw new Error("STACKS_RESERVE_WALLET not configured — cannot create Paycrest order for Stacks payout");
+        if (!order || order.status !== "awaiting_deposit") {
+            return { ...created, idempotent: false, warning: "order_not_found_or_wrong_status" };
+        }
+
+        // Mark as confirming
+        await ledger.updateOrder(order.orderId, { status: "confirming", txHash: input.txHash });
+
+        // ── PAYOUT ROUTING ────────────────────────────────────────────────────
+
+        // cUSD_CELO / USDC_BASE — Paycrest order was already created at order time.
+        // Just update the ledger; Paycrest webhook will flip status to settled/failed.
+        if (order.asset === "cUSD_CELO" || order.asset === "USDC_BASE") {
+            if (!order.paycrestOrderId) {
+                // Edge case: order was created before Paycrest integration.
+                // Fall through to legacy flow below.
+                console.warn(`[settlement] order ${order.orderId} has no paycrestOrderId — falling back to ad-hoc Paycrest order`);
+            } else {
+                console.log(`[settlement] ✅ deposit confirmed for Paycrest order ${order.paycrestOrderId} — awaiting Paycrest webhook`);
+                return {
+                    ...created,
+                    idempotent: false,
+                    orderId: order.orderId,
+                    paycrestOrderId: order.paycrestOrderId,
+                    status: "confirming",
+                    note: "Paycrest is handling payout — final status via webhook",
+                };
             }
+        }
+
+        // USDCX_STACKS — create a fresh Paycrest order using USDC/Base reserves.
+        if (order.asset === "USDCX_STACKS") {
+            try {
+                const reserveWallet = config.stacksReserveWallet;
+                if (!reserveWallet) {
+                    throw new Error("STACKS_RESERVE_WALLET not configured — cannot create Paycrest order for Stacks payout");
+                }
+
+                // Fetch live rate to avoid using expired quote
+                console.log(`[settlement] fetching live USDC/Base → NGN rate for ${order.amountCrypto} USDC`);
+                const liveRate = await paycrest.getLiveRate("USDC", order.amountCrypto, "NGN", "base");
+                const rateToUse = liveRate || order.rate;
+
+                if (!liveRate) {
+                    console.warn(`[settlement] ⚠️ failed to fetch live rate, falling back to order rate ${order.rate}`);
+                } else {
+                    console.log(`[settlement] ✅ live rate: ${liveRate} NGN/USDC (original: ${order.rate})`);
+                }
+
+                // Calculate final NGN payout with live rate
+                const finalReceiveNgn = Number(order.amountCrypto) * Number(rateToUse);
+
+                const pcOrder = await paycrest.createOrder({
+                    amountCrypto: order.amountCrypto,
+                    token: "USDC",
+                    network: "base",
+                    rate: rateToUse,
+                    recipient: {
+                        institution: order.recipientBankCode,
+                        accountIdentifier: order.recipientAccount,
+                        accountName: order.recipientName,
+                        currency: "NGN",
+                        memo: `Clova Stacks offramp ${order.orderId}`,
+                    },
+                    reference: order.orderId,
+                    returnAddress: reserveWallet,
+                });
+
+                const payoutId = `po_${randomUUID()}`;
+                await ledger.putPayout({
+                    payoutId,
+                    quoteId: order.orderId,
+                    amountKobo: Math.round(finalReceiveNgn * 100),
+                    currency: "NGN",
+                    recipientCode: order.orderId,
+                    reason: `Stacks USDCx offramp ${order.orderId}`,
+                    status: "processing",
+                    provider: "paycrest",
+                    transferCode: pcOrder.id,
+                    transferRef: order.orderId,
+                    createdAt: now,
+                    updatedAt: now,
+                });
+
+                await ledger.updateOrder(order.orderId, {
+                    paycrestOrderId: pcOrder.id,
+                    payoutId,
+                    transferCode: pcOrder.id,
+                    rate: rateToUse,
+                    receiveNgn: finalReceiveNgn.toString(),
+                });
+
+                console.log(`[settlement] Stacks order ${order.orderId} → Paycrest order ${pcOrder.id}`);
+                return {
+                    ...created,
+                    idempotent: false,
+                    orderId: order.orderId,
+                    paycrestOrderId: pcOrder.id,
+                    status: "confirming",
+                    note: "Paycrest USDC/Base order created — fiat payout in progress",
+                };
+            } catch (err: any) {
+                const reason = err?.message || "stacks_paycrest_order_failed";
+                console.error(`[settlement] Stacks payout failed for ${order.orderId}:`, reason);
+                await ledger.updateOrder(order.orderId, { status: "failed", failureReason: reason });
+                return { ...created, idempotent: false, orderId: order.orderId, status: "failed", error: reason };
+            }
+        }
+
+        // ── LEGACY FALLBACK: no paycrestOrderId on Celo/Base order ─────────
+        // Create an ad-hoc Paycrest order (covers orders created before this migration)
+        try {
+            const paycrestAssetMap: Record<string, { token: string; network: string }> = {
+                cUSD_CELO: { token: "CUSD", network: "celo" },
+                USDC_BASE: { token: "USDC", network: "base" },
+            };
+            const pa = paycrestAssetMap[order.asset];
+            if (!pa) throw new Error(`no_paycrest_mapping_for_${order.asset}`);
 
             const pcOrder = await paycrest.createOrder({
                 amountCrypto: order.amountCrypto,
-                token: "USDC",
-                network: "base",
+                token: pa.token,
+                network: pa.network,
                 rate: order.rate,
                 recipient: {
                     institution: order.recipientBankCode,
                     accountIdentifier: order.recipientAccount,
                     accountName: order.recipientName,
                     currency: "NGN",
-                    memo: `Clova Stacks offramp ${order.orderId}`,
+                    memo: `Clova legacy offramp ${order.orderId}`,
                 },
                 reference: order.orderId,
-                returnAddress: reserveWallet,
+                returnAddress: config.depositWallets[order.asset] || "0x0000000000000000000000000000000000000000",
             });
 
             const payoutId = `po_${randomUUID()}`;
@@ -174,7 +254,7 @@ export async function processCredited(input: CreditedInput) {
                 amountKobo: Math.round(Number(order.receiveNgn) * 100),
                 currency: "NGN",
                 recipientCode: order.orderId,
-                reason: `Stacks USDCx offramp ${order.orderId}`,
+                reason: `Legacy offramp ${order.orderId}`,
                 status: "processing",
                 provider: "paycrest",
                 transferCode: pcOrder.id,
@@ -189,83 +269,19 @@ export async function processCredited(input: CreditedInput) {
                 transferCode: pcOrder.id,
             });
 
-            console.log(`[settlement] Stacks order ${order.orderId} → Paycrest order ${pcOrder.id}`);
+            console.log(`[settlement] legacy order ${order.orderId} → Paycrest ${pcOrder.id}`);
             return {
                 ...created,
                 idempotent: false,
                 orderId: order.orderId,
                 paycrestOrderId: pcOrder.id,
                 status: "confirming",
-                note: "Paycrest USDC/Base order created — fiat payout in progress",
             };
         } catch (err: any) {
-            const reason = err?.message || "stacks_paycrest_order_failed";
-            console.error(`[settlement] Stacks payout failed for ${order.orderId}:`, reason);
+            const reason = err?.message || "paycrest_ad_hoc_order_failed";
+            console.error(`[settlement] legacy payout failed for ${order.orderId}:`, reason);
             await ledger.updateOrder(order.orderId, { status: "failed", failureReason: reason });
             return { ...created, idempotent: false, orderId: order.orderId, status: "failed", error: reason };
         }
-    }
-
-    // ── LEGACY FALLBACK: no paycrestOrderId on Celo/Base order ─────────
-    // Create an ad-hoc Paycrest order (covers orders created before this migration)
-    try {
-        const paycrestAssetMap: Record<string, { token: string; network: string }> = {
-            cUSD_CELO: { token: "CUSD", network: "celo" },
-            USDC_BASE: { token: "USDC", network: "base" },
-        };
-        const pa = paycrestAssetMap[order.asset];
-        if (!pa) throw new Error(`no_paycrest_mapping_for_${order.asset}`);
-
-        const pcOrder = await paycrest.createOrder({
-            amountCrypto: order.amountCrypto,
-            token: pa.token,
-            network: pa.network,
-            rate: order.rate,
-            recipient: {
-                institution: order.recipientBankCode,
-                accountIdentifier: order.recipientAccount,
-                accountName: order.recipientName,
-                currency: "NGN",
-                memo: `Clova legacy offramp ${order.orderId}`,
-            },
-            reference: order.orderId,
-            returnAddress: config.depositWallets[order.asset] || "0x0000000000000000000000000000000000000000",
-        });
-
-        const payoutId = `po_${randomUUID()}`;
-        await ledger.putPayout({
-            payoutId,
-            quoteId: order.orderId,
-            amountKobo: Math.round(Number(order.receiveNgn) * 100),
-            currency: "NGN",
-            recipientCode: order.orderId,
-            reason: `Legacy offramp ${order.orderId}`,
-            status: "processing",
-            provider: "paycrest",
-            transferCode: pcOrder.id,
-            transferRef: order.orderId,
-            createdAt: now,
-            updatedAt: now,
-        });
-
-        await ledger.updateOrder(order.orderId, {
-            paycrestOrderId: pcOrder.id,
-            payoutId,
-            transferCode: pcOrder.id,
-        });
-
-        console.log(`[settlement] legacy order ${order.orderId} → Paycrest ${pcOrder.id}`);
-        return {
-            ...created,
-            idempotent: false,
-            orderId: order.orderId,
-            paycrestOrderId: pcOrder.id,
-            status: "confirming",
-        };
-    } catch (err: any) {
-        const reason = err?.message || "paycrest_ad_hoc_order_failed";
-        console.error(`[settlement] legacy payout failed for ${order.orderId}:`, reason);
-        await ledger.updateOrder(order.orderId, { status: "failed", failureReason: reason });
-        return { ...created, idempotent: false, orderId: order.orderId, status: "failed", error: reason };
     }
 }

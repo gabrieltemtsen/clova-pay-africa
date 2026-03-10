@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import { Router } from "express";
 import { z } from "zod";
 import { config } from "../lib/config.js";
@@ -76,7 +76,8 @@ orderRouter.post("/v1/orders", async (req, res) => {
 
     const { asset, amountCrypto, recipient, returnAddress } = parsed.data;
     const now = Date.now();
-    const orderId = `ord_${randomUUID()}`;
+    // 14 bytes = 28 hex chars + "ord_" = 32 chars total (Stacks memo limit is 34-bytes)
+    const orderId = `ord_${randomBytes(14).toString("hex")}`;
 
     // Generate quote first (rate + fee calculation)
     const quote = await makeQuote({ asset, amountCrypto, destinationCurrency: "NGN" });
