@@ -27,7 +27,7 @@ const BANKS = [
     { name: "Safe Haven MFB", code: "SAHVNGPC" },
 ];
 
-function JsonDisplay({ data }: { data: any }) {
+function JsonDisplay({ data }: { data: unknown }) {
     const text = typeof data === "string" ? data : JSON.stringify(data, null, 2);
     return (
         <pre className="text-xs font-mono text-gray-300 bg-[#0a0a0a] p-4 rounded-xl border border-white/10 overflow-x-auto whitespace-pre-wrap leading-relaxed">
@@ -186,7 +186,7 @@ export default function PlaygroundPage() {
                     {quoteLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
                     Run
                 </button>
-                {!!quoteResult && <JsonDisplay data={quoteResult} />}
+                {quoteResult && <JsonDisplay data={quoteResult} />}
             </Section>
 
             {/* Order */}
@@ -244,7 +244,7 @@ export default function PlaygroundPage() {
                     {orderLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
                     Run
                 </button>
-                {!!orderResult && <JsonDisplay data={orderResult} />}
+                {orderResult && <JsonDisplay data={orderResult} />}
             </Section>
 
             {/* Banks */}
@@ -255,7 +255,7 @@ export default function PlaygroundPage() {
                     {banksLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
                     Run
                 </button>
-                {!!banksResult && <JsonDisplay data={banksResult} />}
+                {banksResult && <JsonDisplay data={banksResult} />}
             </Section>
         </motion.div>
     );
