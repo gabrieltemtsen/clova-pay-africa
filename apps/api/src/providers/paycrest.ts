@@ -156,6 +156,7 @@ export class PaycrestProvider {
             };
             if (input.webhookUrl) body.webhookUrl = input.webhookUrl;
 
+            console.log("[paycrest] Creating order with payload:", JSON.stringify(body, null, 2));
             const data = await paycrestRequest("POST", "/sender/orders", body);
             return {
                 id: String(data?.id || data?.orderId || ""),
@@ -171,8 +172,14 @@ export class PaycrestProvider {
                 createdAt: data?.createdAt,
             };
         } catch (e: any) {
-            console.error("[paycrest] createOrder error:", e?.response?.data || e.message);
-            throw new Error(`paycrest_order_failed: ${e?.response?.data?.message || e.message}`);
+            const errorDetail = e?.response?.data || e?.data || { message: e.message };
+            console.error("[paycrest] createOrder error - Full response:", JSON.stringify({
+                status: e?.response?.status,
+                statusText: e?.response?.statusText,
+                data: errorDetail,
+                headers: e?.response?.headers,
+            }, null, 2));
+            throw new Error(`paycrest_order_failed: ${errorDetail?.message || e.message}`);
         }
     }
 
