@@ -42,16 +42,25 @@ async function paycrestRequest(
     path: string,
     body?: unknown,
 ): Promise<any> {
-    const res = await axios({
+    const requestConfig = {
         method,
         url: `${config.paycrestBaseUrl}${path}`,
         headers: {
             "API-Key": config.paycrestApiKey,
             "Content-Type": "application/json",
+            "Accept": "application/json",
         },
         data: body,
         timeout: 15000,
-    });
+        validateStatus: () => true, // Don't throw on any status code
+    };
+
+    const res = await axios(requestConfig);
+
+    // Check HTTP status first
+    if (res.status !== 200 && res.status !== 201) {
+        throw new Error(`http_${res.status}: ${res.statusText} - ${JSON.stringify(res.data)}`);
+    }
 
     // Paycrest wraps responses: { status: "success", data: { data: ... } } or { data: ... }
     const payload = res.data;
