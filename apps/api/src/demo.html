@@ -244,6 +244,10 @@
       🔒 <strong>Safe flow:</strong> Payouts only fire <em>after</em> your crypto deposit is confirmed. No money leaves
       until you send stablecoins.
     </div>
+    <div class="warn" id="liveWarn" style="display:none; background:#1a1a0033; border-color:#fbbf2433; color:#fbbf24;">
+      ⚠️ <strong>Live mode active.</strong> Orders created here will trigger <em>real</em> Paycrest payouts.
+      Set <code>PAYCREST_MODE=mock</code> on the server to test without real transactions.
+    </div>
 
     <!-- STEP 1: Create Order -->
     <div class="card active" id="step1">
@@ -267,11 +271,18 @@
 
       <label>Bank</label>
       <select id="bankCode">
-        <option value="044">Access Bank (044)</option>
-        <option value="011">First Bank (011)</option>
-        <option value="058">GTBank (058)</option>
-        <option value="033">UBA (033)</option>
-        <option value="057" selected>Zenith Bank (057)</option>
+        <option value="ABNGNGLA">Access Bank (ABNGNGLA)</option>
+        <option value="FBNINGLA">First Bank of Nigeria (FBNINGLA)</option>
+        <option value="GTBINGLA">Guaranty Trust Bank (GTBINGLA)</option>
+        <option value="UNAFNGLA">UBA (UNAFNGLA)</option>
+        <option value="ZEIBNGLA" selected>Zenith Bank (ZEIBNGLA)</option>
+        <option value="OPAYNGPC">OPay (OPAYNGPC)</option>
+        <option value="KUDANGPC">Kuda Microfinance Bank (KUDANGPC)</option>
+        <option value="PALMNGPC">PalmPay (PALMNGPC)</option>
+        <option value="MONINGPC">Moniepoint MFB (MONINGPC)</option>
+        <option value="WEMANGLA">Wema Bank (WEMANGLA)</option>
+        <option value="FCMBNGLA">FCMB (FCMBNGLA)</option>
+        <option value="SBICNGLA">Stanbic IBTC (SBICNGLA)</option>
       </select>
 
       <button id="btnCreateOrder" onclick="createOrder()">Create Order</button>
@@ -309,8 +320,22 @@
 
   <script>
     const API = '';
-    const KEY = 'himom';
+    // Set your OWNER_API_KEY here for demo use — or leave blank to use x402 flow
+    const KEY = window.location.search.includes('key=') 
+      ? new URLSearchParams(window.location.search).get('key') 
+      : '';
     let currentOrder = null;
+
+    // Check server mode on load
+    (async () => {
+      try {
+        const r = await fetch(`${API}/health`);
+        const d = await r.json();
+        if (d?.paycrestMode === 'live') {
+          document.getElementById('liveWarn').style.display = 'block';
+        }
+      } catch {}
+    })();
 
     function log(msg) {
       const el = document.getElementById('logPanel');
