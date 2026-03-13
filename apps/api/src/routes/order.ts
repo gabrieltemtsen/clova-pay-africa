@@ -35,7 +35,7 @@ async function reconcileOrderStatus(orderId: string) {
 
 const orderSchema = z.object({
     asset: z.enum(["cUSD_CELO", "USDC_BASE", "USDCX_STACKS"]),
-    amountCrypto: z.string().min(1),
+    amountCrypto: z.string().min(1).refine((v) => Number(v) >= 1, { message: "Minimum cashout is 1 cUSD / USDC" }),
     destinationCurrency: z.string().optional().default("NGN"),
     recipient: z.object({
         accountName: z.string().min(2),
@@ -115,7 +115,16 @@ orderRouter.post("/v1/orders", async (req, res) => {
                 amountCrypto,
                 currency,
                 paycrestAsset.network,
-            ) || quote.rate;
+            );
+            if (!paycrestRate) {
+                // Paycrest returned no provider for this corridor/amount combination.
+                // Do NOT fall back to quote.rate — Paycrest will reject a stale rate anyway.
+                return res.status(422).json({
+                    error: "no_provider_available",
+                    detail: `No Paycrest provider available for ${paycrestAsset.token}→${currency} at amount ${amountCrypto}. Try a larger amount or try again later.`,
+                    userMessage: `No liquidity provider available right now for ${currency} cashouts at this amount. Please try a larger amount or try again in a few minutes.`,
+                });
+            }
 
             const pcOrder = await paycrest.createOrder({
                 amountCrypto,
