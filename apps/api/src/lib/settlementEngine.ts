@@ -201,7 +201,7 @@ export async function processCredited(input: CreditedInput) {
                     payoutId,
                     transferCode: pcOrder.id,
                     rate: rateToUse,
-                    receiveNgn: finalReceiveNgn.toString(),
+                    receiveFiat: finalReceiveNgn.toString(),
                 });
 
                 console.log(`[settlement] Stacks order ${order.orderId} → Paycrest order ${pcOrder.id}`);
@@ -251,7 +251,7 @@ export async function processCredited(input: CreditedInput) {
             await ledger.putPayout({
                 payoutId,
                 quoteId: order.orderId,
-                amountKobo: Math.round(Number(order.receiveNgn) * 100),
+                amountKobo: Math.round(Number(order.receiveFiat) * 100),
                 currency: "NGN",
                 recipientCode: order.orderId,
                 reason: `Legacy offramp ${order.orderId}`,

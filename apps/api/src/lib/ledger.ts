@@ -57,8 +57,8 @@ export type OfframpOrder = {
   amountCrypto: string;
   rate: string;
   feeBps: number;
-  feeNgn: string;
-  receiveNgn: string;
+  feeFiat: string;
+  receiveFiat: string;
   depositAddress: string;
   recipientName: string;
   recipientAccount: string;
@@ -314,7 +314,7 @@ class PostgresLedger implements Ledger {
   rowToOrder(r: any): OfframpOrder {
     return {
       orderId: r.order_id, asset: r.asset, amountCrypto: r.amount_crypto,
-      rate: r.rate, feeBps: Number(r.fee_bps), feeNgn: r.fee_ngn, receiveNgn: r.receive_ngn,
+      rate: r.rate, feeBps: Number(r.fee_bps), feeFiat: r.fee_ngn, receiveFiat: r.receive_ngn,
       depositAddress: r.deposit_address, recipientName: r.recipient_name,
       recipientAccount: r.recipient_account, recipientBankCode: r.recipient_bank_code,
       recipientCode: r.recipient_code || undefined,
@@ -430,7 +430,7 @@ class PostgresLedger implements Ledger {
        paycrest_order_id=excluded.paycrest_order_id,payout_id=excluded.payout_id,
        transfer_code=excluded.transfer_code,tx_hash=excluded.tx_hash,funding_tx_hash=excluded.funding_tx_hash,
        failure_reason=excluded.failure_reason,updated_at=excluded.updated_at`,
-      [o.orderId, o.asset, o.amountCrypto, o.rate, o.feeBps, o.feeNgn, o.receiveNgn, o.depositAddress,
+      [o.orderId, o.asset, o.amountCrypto, o.rate, o.feeBps, o.feeFiat, o.receiveFiat, o.depositAddress,
       o.recipientName, o.recipientAccount, o.recipientBankCode, o.recipientCode || null,
       o.paycrestOrderId || null, o.status,
       o.payoutId || null, o.transferCode || null, o.txHash || null, o.fundingTxHash || null,

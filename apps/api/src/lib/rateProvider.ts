@@ -1,42 +1,71 @@
 import { config } from "./config.js";
+import { PaycrestProvider } from "../providers/paycrest.js";
+import type { SupportedCurrency } from "./types.js";
 
 type RateCache = {
     rate: number;
     fetchedAt: number;
 };
 
-let cache: RateCache | null = null;
+const cacheMap = new Map<string, RateCache>();
 const CACHE_TTL_MS = 60_000; // 1 minute
 
-/**
- * Fetch live USDT/NGN P2P-equivalent rate from multiple sources.
- * Falls back to the static DEFAULT_NGN_RATE if all sources fail.
- */
-async function fetchLiveRate(): Promise<number> {
-    const sources = [
-        fetchBinanceRate,
-        fetchCoinGeckoRate,
-    ];
+const paycrest = new PaycrestProvider();
 
-    for (const fetcher of sources) {
-        try {
-            const rate = await fetcher();
-            if (rate && rate > 0) {
-                console.log(`[rate] fetched live rate: ₦${rate.toFixed(2)}/USD from ${fetcher.name}`);
+// Network to use for Paycrest rate lookups
+const PAYCREST_NETWORK: Record<string, string> = {
+    NGN: "polygon",
+    KES: "polygon",
+    GHS: "polygon",
+    UGX: "polygon",
+    TZS: "polygon",
+    MWK: "polygon",
+    BRL: "polygon",
+    XOF: "polygon",
+    INR: "polygon",
+};
+
+/**
+ * Fetch live USDT/<currency> rate for any supported currency.
+ * Primary source: Paycrest rate API. Falls back to static defaultRates.
+ */
+async function fetchLiveRate(currency: SupportedCurrency): Promise<number> {
+    try {
+        const network = PAYCREST_NETWORK[currency] ?? "polygon";
+        const rateStr = await paycrest.getLiveRate("USDT", "1", currency, network);
+        if (rateStr) {
+            const rate = Number(rateStr);
+            if (rate > 0) {
+                console.log(`[rate] paycrest live rate: ${rate.toFixed(4)} ${currency}/USD`);
                 return rate;
             }
-        } catch (err: any) {
-            console.warn(`[rate] ${fetcher.name} failed: ${err.message}`);
+        }
+    } catch (err: any) {
+        console.warn(`[rate] paycrest rate fetch failed for ${currency}: ${err.message}`);
+    }
+
+    // Fallback to Binance/CoinGecko for NGN only (legacy)
+    if (currency === "NGN") {
+        for (const fetcher of [fetchBinanceRate, fetchCoinGeckoRate]) {
+            try {
+                const rate = await fetcher();
+                if (rate && rate > 0) {
+                    console.log(`[rate] fallback live rate (${fetcher.name}): ₦${rate.toFixed(2)}/USD`);
+                    return rate;
+                }
+            } catch (err: any) {
+                console.warn(`[rate] ${fetcher.name} failed: ${err.message}`);
+            }
         }
     }
 
-    console.warn(`[rate] all sources failed, using fallback: ₦${config.defaultNgnRate}`);
-    return config.defaultNgnRate;
+    const fallback = config.defaultRates[currency] ?? 1;
+    console.warn(`[rate] all sources failed for ${currency}, using fallback: ${fallback}`);
+    return fallback;
 }
 
 /**
  * Binance P2P-style rate via spot USDT/NGN.
- * Uses the Binance public ticker API.
  */
 async function fetchBinanceRate(): Promise<number> {
     const res = await fetch(
@@ -62,36 +91,39 @@ async function fetchCoinGeckoRate(): Promise<number> {
 }
 
 /**
- * Get the current NGN rate with caching.
+ * Get the current rate for a currency with caching.
  * Returns the market rate BEFORE applying the company margin.
  */
-export async function getMarketRate(): Promise<number> {
-    if (cache && (Date.now() - cache.fetchedAt) < CACHE_TTL_MS) {
-        return cache.rate;
+export async function getMarketRate(currency: SupportedCurrency = "NGN"): Promise<number> {
+    const cached = cacheMap.get(currency);
+    if (cached && (Date.now() - cached.fetchedAt) < CACHE_TTL_MS) {
+        return cached.rate;
     }
 
-    const rate = await fetchLiveRate();
-    cache = { rate, fetchedAt: Date.now() };
+    const rate = await fetchLiveRate(currency);
+    cacheMap.set(currency, { rate, fetchedAt: Date.now() });
     return rate;
 }
 
 /**
  * Get the rate offered to users (market rate minus company margin).
  * This is what users actually receive per USD.
- *
- * Example: market = ₦1,580, margin = 3% → user gets ₦1,531.40
  */
-export async function getOfframpRate(): Promise<{ marketRate: number; offrampRate: number; marginPct: number }> {
-    const marketRate = await getMarketRate();
+export async function getOfframpRate(currency: SupportedCurrency = "NGN"): Promise<{ marketRate: number; offrampRate: number; marginPct: number }> {
+    const marketRate = await getMarketRate(currency);
     const marginPct = config.rateMarginPct;
-    const offrampRate = Math.round(marketRate * (1 - marginPct / 100));
+    const offrampRate = Number((marketRate * (1 - marginPct / 100)).toFixed(6));
 
     return { marketRate, offrampRate, marginPct };
 }
 
 /**
- * Force refresh the cached rate (useful after config changes).
+ * Force refresh the cached rate for a currency (or all currencies).
  */
-export function invalidateRateCache() {
-    cache = null;
+export function invalidateRateCache(currency?: SupportedCurrency) {
+    if (currency) {
+        cacheMap.delete(currency);
+    } else {
+        cacheMap.clear();
+    }
 }
