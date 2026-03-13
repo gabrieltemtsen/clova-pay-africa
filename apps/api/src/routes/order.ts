@@ -35,7 +35,7 @@ async function reconcileOrderStatus(orderId: string) {
 
 const orderSchema = z.object({
     asset: z.enum(["cUSD_CELO", "USDC_BASE", "USDCX_STACKS"]),
-    amountCrypto: z.string().min(1).refine((v) => Number(v) >= 1, { message: "Minimum cashout is 1 cUSD / USDC" }),
+    amountCrypto: z.string().min(1),
     destinationCurrency: z.string().optional().default("NGN"),
     recipient: z.object({
         accountName: z.string().min(2),
