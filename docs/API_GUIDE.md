@@ -1,8 +1,8 @@
 # Clova Pay Africa — Integrator Guide
 
-> **The crypto-to-fiat offramp API.** Accept stablecoins from your users and deliver Nigerian Naira to their bank accounts — in 3 API calls.
+> **The crypto-to-fiat offramp API.** Accept stablecoins from your users and deliver local African fiat (NGN, KES, GHS, UGX) to their bank accounts or mobile wallets — in 3 API calls.
 
-Base URL: `https://api.clovapay.africa` (local: `http://localhost:8787`)
+Base URL: `https://api.clovapay.africa` (local: `http://localhost:3000`)
 
 ---
 
@@ -22,7 +22,8 @@ curl -X POST https://api.clovapay.africa/v1/orders \
     "recipient": {
       "accountName": "Jane Doe",
       "accountNumber": "2209866438",
-      "bankCode": "057"
+      "bankCode": "057",
+      "currency": "NGN"
     }
   }'
 ```
@@ -36,8 +37,9 @@ curl -X POST https://api.clovapay.africa/v1/orders \
   "asset": "cUSD_CELO",
   "amountCrypto": "25",
   "rate": "1500",
-  "feeNgn": "562.50",
-  "receiveNgn": "36937.50",
+  "feeFiat": "562.50",
+  "receiveFiat": "36937.50",
+  "currency": "NGN",
   "expiresAt": 1771358153836
 }
 ```
@@ -86,9 +88,9 @@ curl -X POST https://api.clovapay.africa/v1/settlements/credited \
 
 **What happens automatically:**
 1. Clova Pay verifies the deposit
-2. A Paystack recipient is created for the bank account
-3. A Paystack transfer is initiated (NGN → recipient's bank)
-4. Order status flips to `paid_out`
+2. A Paycrest payout is initiated (Fiat → recipient's bank/wallet)
+3. Order status flips to `paid_out`
+4. Final delivery confirmed via Paycrest webhook
 
 ### Step 4 → Poll Order Status (optional)
 
@@ -101,8 +103,8 @@ curl https://api.clovapay.africa/v1/orders/ord_58149cba-... \
 |---|---|
 | `awaiting_deposit` | Order created, waiting for crypto |
 | `confirming` | Deposit detected, processing payout |
-| `paid_out` | Paystack transfer initiated |
-| `settled` | Fiat delivered to bank (via webhook) |
+| `paid_out` | Paycrest payout initiated |
+| `settled` | Fiat delivered to bank/wallet (via webhook) |
 | `failed` | Something went wrong (see `failureReason`) |
 | `expired` | 30-min window elapsed without deposit |
 
@@ -161,8 +163,12 @@ async function offramp({ asset, amount, bankName, bankAccount, bankCode }) {
 x-api-key: YOUR_API_KEY
 ```
 
-### x402 Payment Protocol
-Include x402 payment proof headers. See [x402.org](https://x402.org) for details.
+### x402 Payment Protocol (Recommended for Agents)
+Include x402 payment proof headers. The API uses v2 of the protocol:
+- **Request Header**: `PAYMENT-SIGNATURE` (Standard x402 V2 signature)
+- **Response Header**: `PAYMENT-RESPONSE` (Contains the payment receipt)
+
+See [x402.org](https://x402.org) for protocol details. Use the `@thirdweb-dev/x402` SDK for easy integration.
 
 ---
 
@@ -172,7 +178,7 @@ Include x402 payment proof headers. See [x402.org](https://x402.org) for details
 | Method | Path | Description |
 |---|---|---|
 | GET | `/health` | Health check |
-| POST | `/v1/webhooks/paystack` | Paystack webhook callback |
+| POST | `/v1/webhooks/paycrest` | Paycrest webhook callback |
 | POST | `/v1/watchers/deposits` | On-chain watcher callback |
 
 ### Paid (require auth)
@@ -198,19 +204,28 @@ Include x402 payment proof headers. See [x402.org](https://x402.org) for details
 | `USDC_BASE` | Base | USDC | 6 |
 | `USDCX_STACKS` | Stacks | USDCx | 6 |
 
-## Supported Banks
+## Supported Corridors & Banks
 
-Nigerian banks via Paystack. Common codes:
+Clova Pay supports multiple African fiat corridors via Paycrest.
 
+### Nigeria (NGN)
+Common bank codes:
 | Bank | Code |
 |---|---|
-| Access Bank | 044 |
-| First Bank | 011 |
-| GTBank | 058 |
-| UBA | 033 |
-| Zenith Bank | 057 |
+| Access Bank | ABNGNGLA |
+| GTBank | GTBINGLA |
+| Zenith Bank | ZEIBNGLA |
 
-Full list: [Paystack Bank Codes](https://api.paystack.co/bank)
+### Kenya (KES)
+Supports M-PESA and major banks.
+
+### Ghana (GHS)
+Supports MTN MOMO, Telebirr, and banks.
+
+### Uganda (UGX)
+Supports Airtel and MTN mobile money.
+
+Full list: Use `GET /v1/banks?currency=NGN` (or KES, GHS, UGX) to fetch the latest supported institutions for any corridor.
 
 ---
 

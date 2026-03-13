@@ -2,25 +2,27 @@
 
 Offramp infrastructure for African payouts:
 - Accept crypto stablecoins
-- Settle local fiat (starting with NGN)
-- Route payouts through PSPs (Paystack first, Flutterwave next)
+- Settle local fiat (supporting **NGN, KES, GHS, UGX**)
+- Route payouts through **Paycrest** (multi-corridor aggregator)
 - Add liquidity providers that earn fees
 
-## Phase 1 (MVP)
-- Corridor: **NGN**
+## Phase 1 (Live)
+- Corridors: **NGN** (Nigeria), **KES** (Kenya), **GHS** (Ghana), **UGX** (Uganda)
 - Rails:
-  - cUSD on Celo -> NGN
-  - USDC on Base -> NGN
-  - USDCx (Stacks) -> NGN
-- PSP: **Paystack transfers**
+  - cUSD on Celo -> Local Fiat
+  - USDC on Base -> Local Fiat
+  - USDCx on Stacks -> Local Fiat
+- PSP: **Paycrest** (Primary rail for all corridors)
+
 
 ## Core Flow
-1. User requests quote
-2. System returns rate, fee, and destination amount
+1. User requests quote for a supported corridor (e.g., KES, NGN)
+2. System returns rate, fee, and destination amount via Paycrest
 3. User deposits crypto to assigned wallet/reference
 4. System confirms onchain settlement
-5. System triggers Paystack transfer to recipient bank
+5. System triggers **Paycrest** payout to recipient bank or mobile wallet
 6. Webhook updates final payout status
+
 
 ## Current API (MVP+)
 - `GET /health` (public)
@@ -28,7 +30,7 @@ Offramp infrastructure for African payouts:
 - `POST /v1/payouts` (paid; supports recipientCode OR bank details)
 - `GET /v1/payouts` (paid)
 - `GET /v1/payouts/:payoutId` (paid)
-- `POST /v1/webhooks/paystack` (public callback)
+- `POST /v1/webhooks/paycrest` (public callback)
 - `POST /v1/watchers/deposits` (watcher token callback)
 - `POST /v1/liquidity/providers` (paid)
 - `GET /v1/liquidity/providers` (paid)
@@ -39,8 +41,10 @@ Offramp infrastructure for African payouts:
 
 ## Access Control / Billing
 - Primary: **x402** via Thirdweb (`thirdweb/x402`) for agent-friendly pay-per-call access.
+  - Supports V2 headers: `PAYMENT-SIGNATURE` (request) and `PAYMENT-RESPONSE` (receipt).
 - Optional owner bypass: `OWNER_API_KEY` in `x-api-key` (or Bearer token) for internal/admin calls.
-- Public unauthenticated endpoints remain limited to health and Paystack webhooks.
+- Public unauthenticated endpoints remain limited to health and Paycrest webhooks.
+
 
 ## Repo Layout
 - `apps/api` – API service + provider adapters + ledger logic

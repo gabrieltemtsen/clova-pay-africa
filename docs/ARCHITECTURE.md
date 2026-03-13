@@ -5,8 +5,10 @@ Clova Pay Africa is a crypto-to-fiat offramp infrastructure layer.
 
 Current production target:
 - Stablecoin rails: **cUSD (Celo), USDC (Base), USDCx (Stacks)**
-- Fiat corridor: **NGN**
-- Payout rail: **Paystack transfers**
+- Fiat corridors: **NGN, KES, GHS, UGX**
+- Payout rail: **Paycrest** (Multi-corridor PSP aggregator)
+- *Legacy: Paystack (NGN only) is suspended.*
+
 
 ---
 
@@ -29,12 +31,12 @@ So even if x402 doesn’t support Stacks directly, **Stacks settlement is still 
 
 ### API Service (`apps/api`)
 Responsibilities:
-- Quote generation
-- Payout order creation and status retrieval
+- Quote generation (multi-currency)
+- Payout order creation and status retrieval (Paycrest)
 - Liquidity provider management
 - Settlement acknowledgement endpoint
-- Paystack webhook handling
-- Access control/billing middleware (x402/API key)
+- Paycrest webhook handling
+- Access control/billing middleware (x402 V2 / API key)
 
 ### Ledger
 - Current: in-memory fallback + Postgres mode (`DATABASE_URL`)
@@ -43,8 +45,9 @@ Responsibilities:
   - liquidity providers
 
 ### PSP Adapter Layer
-- Current: Paystack
-- Planned: Flutterwave for more African corridors
+- Primary: **Paycrest** (supports NGN, KES, GHS, UGX)
+- Suspended: Paystack (kept as stub for historical payouts)
+- Future: Direct connections for high-volume corridors
 
 ### Chain Watchers
 - Detect and confirm inbound deposit transactions on Celo/Base/Stacks
@@ -57,10 +60,10 @@ Responsibilities:
 ## 4) High-level flow
 
 1. Client requests quote (`POST /v1/quotes`)  
-2. Client creates payout request (`POST /v1/payouts`)  
+2. Client creates payout request (`POST /v1/orders`)  
 3. Onchain funds are confirmed (watcher or `settlements/credited` scaffold)  
-4. Paystack transfer is created  
-5. Paystack webhook updates payout status (`settled` / `failed`)  
+4. Paycrest payout is created via the aggregator API  
+5. Paycrest webhook updates payout status (`settled` / `failed`)  
 
 ---
 
@@ -87,7 +90,7 @@ Protected endpoints use paid middleware:
 
 Public endpoints:
 - `/health`
-- `/v1/webhooks/paystack`
+- `/v1/webhooks/paycrest`
 
 Internal/admin path:
 - `OWNER_API_KEY` via `x-api-key` or Bearer token
@@ -111,7 +114,7 @@ Planned:
 ---
 
 ## 8) Security and reliability notes
-- Verify Paystack webhook signatures before mutating payout state
+- Verify Paycrest webhook signatures before mutating payout state
 - Keep payout state transitions idempotent
 - Require onchain confirmation thresholds before payout release
 - Log all settlement + payout events for audit/reconciliation
