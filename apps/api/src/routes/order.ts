@@ -115,7 +115,16 @@ orderRouter.post("/v1/orders", async (req, res) => {
                 amountCrypto,
                 currency,
                 paycrestAsset.network,
-            ) || quote.rate;
+            );
+            if (!paycrestRate) {
+                // Paycrest returned no provider for this corridor/amount combination.
+                // Do NOT fall back to quote.rate — Paycrest will reject a stale rate anyway.
+                return res.status(422).json({
+                    error: "no_provider_available",
+                    detail: `No Paycrest provider available for ${paycrestAsset.token}→${currency} at amount ${amountCrypto}. Try a larger amount or try again later.`,
+                    userMessage: `No liquidity provider available right now for ${currency} cashouts at this amount. Please try a larger amount or try again in a few minutes.`,
+                });
+            }
 
             const pcOrder = await paycrest.createOrder({
                 amountCrypto,
