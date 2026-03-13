@@ -101,41 +101,96 @@ export class PaycrestProvider {
     }
 
     async getSupportedInstitutions(currency = "NGN"): Promise<Array<{ name: string; code: string }>> {
-        if (isMock()) {
-            return [
+        // Always fetch live from Paycrest — institution list is public, no auth required.
+        // In mock mode we still call the live API so institution codes are always accurate.
+        try {
+            const data = await paycrestRequest("GET", `/institutions/${currency}`);
+            const rows = Array.isArray(data) ? data : [];
+            const mapped = rows.map((r: any) => ({
+                name: String(r?.name || r?.institution || ""),
+                code: String(r?.code || r?.institutionCode || ""),
+            })).filter((r) => r.name && r.code);
+            if (mapped.length > 0) return mapped;
+        } catch (e: any) {
+            console.warn("[paycrest] getSupportedInstitutions live fetch failed, using static fallback:", e.message);
+        }
+        // Static fallback — only used if Paycrest API is unreachable
+        // NOTE: these are the verified Paycrest institution codes as of 2026-03-13
+        const fallback: Record<string, Array<{ name: string; code: string }>> = {
+            NGN: [
                 { name: "Access Bank", code: "ABNGNGLA" },
                 { name: "Guaranty Trust Bank", code: "GTBINGLA" },
                 { name: "United Bank for Africa", code: "UNAFNGLA" },
                 { name: "Zenith Bank", code: "ZEIBNGLA" },
                 { name: "First Bank Of Nigeria", code: "FBNINGLA" },
-                { name: "OPay", code: "OPAYNGPC" },
-                { name: "Kuda Microfinance Bank", code: "KUDANGPC" },
-                { name: "PalmPay", code: "PALMNGPC" },
-                { name: "Moniepoint MFB", code: "MONINGPC" },
+                { name: "Fidelity Bank", code: "FIDTNGLA" },
+                { name: "FCMB", code: "FCMBNGLA" },
                 { name: "Wema Bank", code: "WEMANGLA" },
                 { name: "Sterling Bank", code: "NAMENGLA" },
-                { name: "FCMB", code: "FCMBNGLA" },
-                { name: "Fidelity Bank", code: "FIDTNGLA" },
                 { name: "Stanbic IBTC Bank", code: "SBICNGLA" },
                 { name: "Union Bank", code: "UBNINGLA" },
                 { name: "Polaris Bank", code: "PRDTNGLA" },
                 { name: "Keystone Bank", code: "PLNINGLA" },
                 { name: "Ecobank Bank", code: "ECOCNGLA" },
                 { name: "Providus Bank", code: "PROVNGLA" },
+                { name: "Jaiz Bank", code: "JAIZNGLA" },
+                { name: "OPay", code: "OPAYNGPC" },
+                { name: "Kuda Microfinance Bank", code: "KUDANGPC" },
+                { name: "PalmPay", code: "PALMNGPC" },
+                { name: "Moniepoint MFB", code: "MONINGPC" },
                 { name: "Safe Haven MFB", code: "SAHVNGPC" },
-            ];
-        }
-        try {
-            const data = await paycrestRequest("GET", `/institutions/${currency}`);
-            const rows = Array.isArray(data) ? data : [];
-            return rows.map((r: any) => ({
-                name: String(r?.name || r?.institution || ""),
-                code: String(r?.code || r?.institutionCode || ""),
-            })).filter((r) => r.name && r.code);
-        } catch (e: any) {
-            console.error("[paycrest] getSupportedInstitutions error:", e.message);
-            return [];
-        }
+            ],
+            KES: [
+                { name: "M-PESA", code: "SAFAKEPC" },
+                { name: "AIRTEL", code: "AIRTKEPC" },
+                { name: "Equity Bank", code: "EQBLKENA" },
+                { name: "Kenya Commercial Bank", code: "KCBLKENX" },
+                { name: "Cooperative Bank of Kenya", code: "KCOOKENA" },
+                { name: "ABSA Bank Kenya", code: "BARCKENX" },
+                { name: "Standard Chartered Kenya", code: "SCBLKENX" },
+                { name: "Stanbic Bank Kenya", code: "SBICKENX" },
+                { name: "National Bank of Kenya", code: "NBKEKENX" },
+                { name: "Family Bank", code: "FABLKENA" },
+                { name: "Guaranty Trust Holding Company PLC", code: "GTBIKENA" },
+            ],
+            GHS: [
+                { name: "MTN Mobile Money", code: "MOMOGHPC" },
+                { name: "Vodafone Cash", code: "VODAGHPC" },
+                { name: "AirtelTigo Money", code: "AIRTGHPC" },
+                { name: "GCB Bank Limited", code: "GHCBGHAC" },
+                { name: "Ecobank Ghana", code: "ECOCGHAC" },
+                { name: "ABSA Bank Ghana", code: "BARCGHAC" },
+                { name: "Stanbic Bank Ghana", code: "SBICGHAC" },
+                { name: "Access Bank Ghana", code: "ABNGGHAC" },
+                { name: "Zenith Bank Ghana", code: "ZEBLGHAC" },
+                { name: "GT Bank Ghana", code: "GTBIGHAC" },
+            ],
+            UGX: [
+                { name: "MTN Mobile Money", code: "MOMOUGPC" },
+                { name: "Airtel Money", code: "AIRTUGPC" },
+            ],
+            TZS: [
+                { name: "Tigo Pesa", code: "TIGOTZPC" },
+                { name: "Airtel Money", code: "AIRTTZPC" },
+                { name: "Halopesa", code: "HALOTZPC" },
+                { name: "CRDB Bank PLC", code: "CORUTZTZ" },
+                { name: "National Microfinance Bank Ltd.", code: "NMIBTZTZ" },
+                { name: "Equity Bank Tanzania Limited", code: "EQBLTZTZ" },
+                { name: "KCB Bank Tanzania Ltd", code: "KCBLTZTZ" },
+            ],
+            MWK: [
+                { name: "TNM Mpamba", code: "TNMPMWPC" },
+                { name: "National Bank of Malawi", code: "NBMAMWMW" },
+                { name: "Standard Bank Limited", code: "SBICMWMX" },
+                { name: "FDH Bank Limited", code: "FDHFMWMW" },
+                { name: "Ecobank Malawi Limited", code: "ECOCMWMW" },
+            ],
+            BRL: [
+                { name: "Pix", code: "PIXKBRPC" },
+                { name: "PixQR", code: "PIXQBRPC" },
+            ],
+        };
+        return fallback[currency.toUpperCase()] || [];
     }
 
     async createOrder(input: PaycrestOrderInput): Promise<PaycrestOrderResponse> {
