@@ -2,6 +2,17 @@ export const config = {
   port: Number(process.env.PORT || 8787),
   defaultFeeBps: Number(process.env.DEFAULT_FEE_BPS || 150),
   defaultNgnRate: Number(process.env.DEFAULT_NGN_RATE || 1500),
+  defaultRates: {
+    NGN: Number(process.env.DEFAULT_NGN_RATE || 1500),
+    KES: 130,
+    GHS: 12,
+    UGX: 3700,
+    TZS: 2600,
+    MWK: 1700,
+    BRL: 5.7,
+    XOF: 600,
+    INR: 84,
+  } as Record<string, number>,
   rateMarginPct: Number(process.env.RATE_MARGIN_PCT || 3),
   watcherAuthToken: process.env.WATCHER_AUTH_TOKEN || "",
   minConfirmations: {
