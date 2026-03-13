@@ -36,16 +36,17 @@ async function reconcileOrderStatus(orderId: string) {
 const orderSchema = z.object({
     asset: z.enum(["cUSD_CELO", "USDC_BASE", "USDCX_STACKS"]),
     amountCrypto: z.string().min(1),
+    destinationCurrency: z.string().optional().default("NGN"),
     recipient: z.object({
         accountName: z.string().min(2),
-        accountNumber: z.string().min(10).max(10),
+        accountNumber: z.string().min(7).max(15),  // supports mobile money (12+ digits) and bank accounts
         bankCode: z.string().min(3),
     }),
     returnAddress: z.string().optional(),  // refund address if order fails/expires
 });
 
 const resolveRecipientSchema = z.object({
-    accountNumber: z.string().min(10).max(10),
+    accountNumber: z.string().min(7).max(15),
     bankCode: z.string().min(3),
 });
 
@@ -74,13 +75,14 @@ orderRouter.post("/v1/orders", async (req, res) => {
     const parsed = orderSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
-    const { asset, amountCrypto, recipient, returnAddress } = parsed.data;
+    const { asset, amountCrypto, recipient, returnAddress, destinationCurrency } = parsed.data;
+    const currency = (destinationCurrency || "NGN").toUpperCase();
     const now = Date.now();
     // 14 bytes = 28 hex chars + "ord_" = 32 chars total (Stacks memo limit is 34-bytes)
     const orderId = `ord_${randomBytes(14).toString("hex")}`;
 
     // Generate quote first (rate + fee calculation)
-    const quote = await makeQuote({ asset, amountCrypto, destinationCurrency: "NGN" });
+    const quote = await makeQuote({ asset, amountCrypto, destinationCurrency: currency as any });
 
     let depositAddress = "";
     let paycrestOrderId: string | undefined;
@@ -111,7 +113,7 @@ orderRouter.post("/v1/orders", async (req, res) => {
             const paycrestRate = await paycrest.getLiveRate(
                 paycrestAsset.token,
                 amountCrypto,
-                "NGN",
+                currency,
                 paycrestAsset.network,
             ) || quote.rate;
 
@@ -124,7 +126,7 @@ orderRouter.post("/v1/orders", async (req, res) => {
                     institution: recipient.bankCode,
                     accountIdentifier: recipient.accountNumber,
                     accountName: recipient.accountName,
-                    currency: "NGN",
+                    currency,
                     memo: `Clova offramp ${orderId}`,
                 },
                 reference: orderId,
