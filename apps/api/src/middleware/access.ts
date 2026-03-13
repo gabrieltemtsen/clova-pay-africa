@@ -63,8 +63,9 @@ export function requirePaidAccess(price: string) {
     Object.entries(result.responseHeaders).forEach(([k, v]) => res.setHeader(k, String(v)));
 
     if (result.status !== 200) {
+      const hasRequirements = result.responseBody && (result.responseBody as any).accepts;
       const body =
-        result.responseBody && Object.keys(result.responseBody).length > 0
+        (result.responseBody && Object.keys(result.responseBody).length > 0) || hasRequirements
           ? result.responseBody
           : {
               error: "payment_required",
