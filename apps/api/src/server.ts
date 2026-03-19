@@ -12,6 +12,7 @@ import { liquidityRouter } from "./routes/liquidity.js";
 import { settlementRouter } from "./routes/settlement.js";
 import { watcherRouter } from "./routes/watcher.js";
 import { orderRouter } from "./routes/order.js";
+import { statsRouter } from "./routes/stats.js";
 import { ledger } from "./lib/ledger.js";
 import { startExpiryWorker } from "./lib/expiryWorker.js";
 import { startStacksWatcher } from "./lib/stacksWatcher.js";
@@ -38,6 +39,7 @@ app.use(requirePaidAccess(process.env.X402_PRICE_PAYOUT || "$0.02"), payoutRoute
 app.use(requirePaidAccess(process.env.X402_PRICE_PAYOUT || "$0.02"), orderRouter);
 app.use(requirePaidAccess(process.env.X402_PRICE_LIQUIDITY || "$0.005"), liquidityRouter);
 app.use(requirePaidAccess(process.env.X402_PRICE_SETTLEMENT || "$0.005"), settlementRouter);
+app.use(requirePaidAccess(process.env.X402_PRICE_SETTLEMENT || "$0.005"), statsRouter);
 
 ledger.init().then(() => {
   startExpiryWorker();
