@@ -17,7 +17,6 @@ import {
     http,
     parseUnits,
     encodeFunctionData,
-    type Hex,
 } from "viem";
 import { base } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
@@ -47,8 +46,8 @@ async function fundOrder(order: {
     amountCrypto: string;
     paycrestOrderId: string;
 }) {
-    const privateKey = config.treasuryPrivateKey as Hex;
-    const usdcAddress = config.baseUsdcContract as Hex;
+    const privateKey = config.treasuryPrivateKey as string;
+    const usdcAddress = config.baseUsdcContract as string;
 
     // 1. Fetch PayCrest order to get the Base deposit address
     const pcOrder = await paycrest.getOrder(order.paycrestOrderId);
@@ -86,7 +85,7 @@ async function fundOrder(order: {
     const data = encodeFunctionData({
         abi: ERC20_TRANSFER_ABI,
         functionName: "transfer",
-        args: [depositAddress as Hex, amount],
+        args: [depositAddress as any, amount],
     });
 
     const txHash = await walletClient.sendTransaction({
