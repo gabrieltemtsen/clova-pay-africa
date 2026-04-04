@@ -48,6 +48,9 @@ export const Navbar = () => {
                         <Link href="#use-cases" className="text-sm font-medium text-gray-300 hover:text-white transition-colors">
                             Use Cases
                         </Link>
+                        <Link href="/app" className="text-sm font-medium text-gray-300 hover:text-white transition-colors">
+                            App
+                        </Link>
                         <Link href="/docs" className="text-sm font-medium text-gray-300 hover:text-white transition-colors">
                             Developers
                         </Link>
@@ -106,6 +109,13 @@ export const Navbar = () => {
                                 onClick={() => setMobileMenuOpen(false)}
                             >
                                 Use Cases
+                            </Link>
+                            <Link
+                                href="/app"
+                                className="block px-3 py-4 text-base font-medium text-gray-300 hover:text-white hover:bg-white/5 rounded-lg transition-colors border-b border-white/5"
+                                onClick={() => setMobileMenuOpen(false)}
+                            >
+                                App
                             </Link>
                             <Link
                                 href="/docs"
