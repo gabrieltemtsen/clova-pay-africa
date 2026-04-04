@@ -51,6 +51,12 @@ export default function AppPage() {
 
   const miniPay = useMemo(() => isMiniPay(), []);
 
+  const [quotePreview, setQuotePreview] = useState<{ rate: string; feeFiat: string; receiveFiat: string } | null>(null);
+  const [quoteLoading, setQuoteLoading] = useState(false);
+
+  // If a wallet is connected and the asset is supported, we can immediately prompt the deposit after creating an order.
+  const [autoDeposit, setAutoDeposit] = useState(true);
+
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -80,6 +86,38 @@ export default function AppPage() {
       mounted = false;
     };
   }, [destinationCurrency]);
+
+  // Live quote preview (debounced)
+  useEffect(() => {
+    let mounted = true;
+    const t = setTimeout(async () => {
+      setQuoteLoading(true);
+      try {
+        const r = await fetch(`/api/clova/quotes`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ asset, amountCrypto, destinationCurrency }),
+        });
+        const d = await r.json();
+        if (!mounted) return;
+        if (!r.ok) {
+          setQuotePreview(null);
+          return;
+        }
+        setQuotePreview({ rate: String(d.rate), feeFiat: String(d.feeFiat), receiveFiat: String(d.receiveFiat) });
+      } catch {
+        if (!mounted) return;
+        setQuotePreview(null);
+      } finally {
+        if (mounted) setQuoteLoading(false);
+      }
+    }, 350);
+
+    return () => {
+      mounted = false;
+      clearTimeout(t);
+    };
+  }, [asset, amountCrypto, destinationCurrency]);
 
   async function onConnectWallet() {
     setError(null);
@@ -128,7 +166,21 @@ export default function AppPage() {
       if (!r.ok) {
         throw new Error(d?.userMessage || d?.detail || d?.error?.message || d?.error || `Order failed (${r.status})`);
       }
-      setOrder(d as Order);
+      const created = d as Order;
+      setOrder(created);
+
+      // Immediately prompt the token transfer (still requires wallet confirmation).
+      const canWalletPay = (asset === "cUSD_CELO" || asset === "USDC_BASE") && Boolean(walletAddr);
+      if (autoDeposit && canWalletPay) {
+        setStep(2);
+        setSuccess("Order created. Opening wallet to deposit...");
+        // Let UI paint before wallet popup.
+        setTimeout(() => {
+          onPayWithWallet(created);
+        }, 50);
+        return;
+      }
+
       setStep(2);
       setSuccess("Order created. Next: deposit crypto.");
     } catch (e: any) {
@@ -138,23 +190,24 @@ export default function AppPage() {
     }
   }
 
-  async function onPayWithWallet() {
-    if (!order) return;
+  async function onPayWithWallet(targetOrder?: Order) {
+    const o = targetOrder || order;
+    if (!o) return;
 
     setError(null);
     setSuccess(null);
 
-    if (asset !== "cUSD_CELO" && asset !== "USDC_BASE") {
+    if (o.asset !== "cUSD_CELO" && o.asset !== "USDC_BASE") {
       return setError("This asset currently requires a manual deposit.");
     }
 
     try {
-      setBusy(miniPay ? "Opening MiniPay…" : "Sending token…");
-      const supportedAsset = asset as SupportedAsset;
+      setBusy(miniPay ? "Opening MiniPay…" : "Opening wallet…");
+      const supportedAsset = o.asset as SupportedAsset;
       const out = await sendErc20({
         asset: supportedAsset,
-        to: order.depositAddress as `0x${string}`,
-        amount: order.amountCrypto,
+        to: o.depositAddress as `0x${string}`,
+        amount: o.amountCrypto,
       });
       setTxHash(out.txHash);
       setStep(3);
@@ -200,13 +253,6 @@ export default function AppPage() {
     }
   }
 
-  const quote = order
-    ? {
-        rate: order.rate,
-        feeFiat: order.feeFiat,
-        receiveFiat: order.receiveFiat,
-      }
-    : null;
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-50">
@@ -294,15 +340,51 @@ export default function AppPage() {
               </div>
 
               <div>
-                <FieldLabel>Amount (crypto)</FieldLabel>
+                <div className="flex items-center justify-between">
+                  <FieldLabel>Amount (stablecoin)</FieldLabel>
+                  <div className="text-xs text-zinc-500 font-mono">{amountCrypto || "0"}</div>
+                </div>
+
+                <input
+                  type="range"
+                  min={"1"}
+                  max={"500"}
+                  step={"1"}
+                  value={Number(amountCrypto || 0)}
+                  onChange={(e) => setAmountCrypto(String(e.target.value))}
+                  className="w-full"
+                />
+
                 <input
                   value={amountCrypto}
                   onChange={(e) => setAmountCrypto(e.target.value)}
                   inputMode="decimal"
-                  className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm"
+                  className="mt-2 w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm"
                   placeholder="10"
                 />
-                <div className="mt-1 text-xs text-zinc-500">Enter the stablecoin amount you want to send.</div>
+
+                <div className="mt-1 text-xs text-zinc-500">
+                  Slide to pick an amount, or type it. We’ll show an estimated receive amount before you confirm.
+                </div>
+
+                <div className="mt-3 rounded-xl border border-zinc-800 bg-zinc-950 p-3 text-sm">
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    <div>
+                      <div className="text-xs text-zinc-500">Rate</div>
+                      <div className="font-mono">{quoteLoading ? "…" : quotePreview?.rate ?? "—"}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-zinc-500">Fee</div>
+                      <div className="font-mono">{quoteLoading ? "…" : quotePreview ? `${quotePreview.feeFiat} ${destinationCurrency}` : "—"}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-zinc-500">Recipient receives</div>
+                      <div className="font-mono text-emerald-300">
+                        {quoteLoading ? "…" : quotePreview ? `${quotePreview.receiveFiat} ${destinationCurrency}` : "—"}
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <div>
@@ -361,7 +443,7 @@ export default function AppPage() {
               </div>
             </div>
 
-            <div className="mt-4 flex flex-col sm:flex-row gap-2">
+            <div className="mt-4 flex flex-col gap-2">
               <button
                 onClick={onCreateOrder}
                 className={cn(
@@ -369,31 +451,23 @@ export default function AppPage() {
                   busy ? "opacity-60 pointer-events-none" : ""
                 )}
               >
-                Create order
+                Continue
               </button>
-              <div className="text-xs text-zinc-500 sm:self-center">
-                Tip: for MiniPay, connect wallet first so we can set a return address.
+
+              <label className="flex items-center gap-2 text-xs text-zinc-400 select-none">
+                <input
+                  type="checkbox"
+                  checked={autoDeposit}
+                  onChange={(e) => setAutoDeposit(e.target.checked)}
+                  className="accent-emerald-500"
+                />
+                After I create the order, prompt my wallet to deposit automatically (recommended)
+              </label>
+
+              <div className="text-xs text-zinc-500">
+                Tip: for MiniPay, connect wallet first so the deposit can happen right after you continue.
               </div>
             </div>
-
-            {quote && (
-              <div className="mt-4 rounded-xl border border-zinc-800 bg-zinc-950 p-3 text-sm">
-                <div className="grid gap-2 sm:grid-cols-3">
-                  <div>
-                    <div className="text-xs text-zinc-500">Rate</div>
-                    <div className="font-mono">{quote.rate}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-zinc-500">Fee</div>
-                    <div className="font-mono">{quote.feeFiat} {destinationCurrency}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-zinc-500">Recipient receives</div>
-                    <div className="font-mono text-emerald-300">{quote.receiveFiat} {destinationCurrency}</div>
-                  </div>
-                </div>
-              </div>
-            )}
           </Card>
 
           {/* Step 2 */}
@@ -438,7 +512,7 @@ export default function AppPage() {
 
                   <div className="mt-3 flex flex-col sm:flex-row gap-2">
                     <button
-                      onClick={onPayWithWallet}
+                      onClick={() => onPayWithWallet()}
                       className={cn(
                         "inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-zinc-950 hover:bg-emerald-400 transition",
                         busy ? "opacity-60 pointer-events-none" : ""
