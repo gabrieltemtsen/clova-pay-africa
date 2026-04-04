@@ -29,6 +29,14 @@ Open-source crypto → local fiat offramp infrastructure for Africa.
 | Base | USDC | Paycrest deposit address per order |
 | Stacks | USDCx | Clarity contract; orderId in memo |
 
+## App (End-user UI)
+
+This repo includes a real web app that renders the offramp UX at:
+
+- **`/app`** — stablecoin → fiat checkout flow (MiniPay supported for cUSD on Celo)
+
+Code: `apps/web`
+
 ## Core Flow
 
 1. **Quote** — `POST /v1/quotes` with asset, amount, and destination currency
@@ -109,6 +117,7 @@ apps/
       routes/   # quote, order, payout, banks, settlement, webhook, health
       providers/ # paycrest.ts — live Paycrest integration
       lib/      # config, types, quote logic, rate provider, ledger
+  web/          # Next.js web app — `/app` checkout flow (MiniPay supported)
 docs/           # ARCHITECTURE.md, API_GUIDE.md, AGENT_INTEGRATION.md
 ```
 

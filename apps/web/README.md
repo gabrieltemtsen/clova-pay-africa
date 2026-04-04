@@ -1,27 +1,40 @@
-# Clova Pay Africa — Dashboard & Checkout
+# Clova Pay Africa — Web App
 
-The frontend for Clova Pay Africa, providing a user-friendly interface for offramping crypto to African fiat.
+This is the **end-user web app** for Clova Pay Africa.
 
-## Features
-- **Checkout UI**: Simple flow to convert cUSD, USDC, and USDCx to local fiat.
-- **Support for Multi-Fiat**: NGN (Nigeria), KES (Kenya), GHS (Ghana), UGX (Uganda).
-- **Embedded Wallets**: Integrated with Thirdweb for seamless social/email login.
+## Routes
 
-## Getting Started
+- `/` — marketing/landing
+- `/app` — **offramp flow** (stablecoin → local fiat)
 
-First, run the development server:
+## MiniPay support (Opera / Celo)
+
+The `/app` flow supports **1-tap deposits in MiniPay** for **cUSD on Celo** via the injected EIP-1193 provider.
+
+## Local dev
 
 ```bash
-pnpm dev
+cd apps/web
+npm install
+
+# required
+export CLOVA_API_URL="http://localhost:3001"   # (or wherever apps/api is running)
+export CLOVA_OWNER_API_KEY=""                   # optional: bypass x402 locally if set
+
+npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open:
+- http://localhost:3000/app
 
-## Configuration
-Ensure your `.env.local` contains:
-- `NEXT_PUBLIC_THIRDWEB_CLIENT_ID`
-- `NEXT_PUBLIC_API_URL` (pointing to the Clova API)
+## Env vars
 
-## Learn More
-Check the root [README](../../README.md) and [Docs](../../docs) for more architecture and API details.
+- `CLOVA_API_URL` (required)
+  - Base URL for the API (example: `https://clova-pay-africa-api.up.railway.app`)
+- `CLOVA_OWNER_API_KEY` (optional)
+  - If set, the web app will call the API with `x-api-key` to bypass x402 during demos/admin usage.
 
+## Notes
+
+- Corridors supported: `NGN, KES, GHS, UGX, TZS, MWK, BRL, XOF, INR` (ZAR not supported)
+- Stacks `USDCx` deposits are currently **manual** in the UI (copy deposit details + paste tx hash).
