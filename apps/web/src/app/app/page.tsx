@@ -44,6 +44,13 @@ async function loadStacks() {
   return await import("@/lib/stacks");
 }
 
+const CONTROL =
+  "w-full rounded-xl border border-zinc-800/80 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 " +
+  "placeholder:text-zinc-600 shadow-sm shadow-black/20 transition " +
+  "focus:outline-none focus:ring-2 focus:ring-emerald-500/25 focus:border-emerald-500/40";
+
+const CONTROL_DISABLED = "disabled:opacity-60 disabled:cursor-not-allowed";
+
 export default function AppPage() {
   const [asset, setAsset] = useState<AssetKey>("USDC_BASE");
   const [amountCrypto, setAmountCrypto] = useState<string>("10");
@@ -270,7 +277,7 @@ export default function AppPage() {
   }, [flow.kind]);
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-50">
+    <div className="min-h-screen bg-zinc-950 text-zinc-50 antialiased">
       <div className="mx-auto max-w-xl px-4 pb-32 pt-8">
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -332,7 +339,7 @@ export default function AppPage() {
                   <select
                     value={asset}
                     onChange={(e) => setAsset(e.target.value as AssetKey)}
-                    className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm"
+                    className={cn(CONTROL, CONTROL_DISABLED)}
                   >
                     {ASSETS.map((a) => (
                       <option key={a.key} value={a.key}>
@@ -347,7 +354,7 @@ export default function AppPage() {
                   <select
                     value={destinationCurrency}
                     onChange={(e) => setDestinationCurrency(e.target.value as any)}
-                    className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm"
+                    className={cn(CONTROL, CONTROL_DISABLED)}
                   >
                     {CORRIDORS.map((c) => (
                       <option key={c} value={c}>
@@ -376,19 +383,19 @@ export default function AppPage() {
                   value={amountCrypto}
                   onChange={(e) => setAmountCrypto(e.target.value)}
                   inputMode="decimal"
-                  className="mt-2 w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm"
+                  className={cn("mt-2", CONTROL, CONTROL_DISABLED)}
                   placeholder="10"
                 />
               </div>
 
-              <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
+              <div className="rounded-2xl border border-zinc-800/80 bg-zinc-950 p-4 shadow-sm shadow-black/20">
                 <div className="text-xs text-zinc-500">Recipient gets (estimated)</div>
-                <div className="mt-1 text-2xl font-semibold tracking-tight">
+                <div className="mt-1 min-h-[32px] text-2xl font-semibold tracking-tight tabular-nums">
                   {quoteLoading ? "…" : quote ? `${money(quote.receiveFiat)} ${destinationCurrency}` : "—"}
                 </div>
                 <div className="mt-2 flex items-center justify-between text-xs text-zinc-500">
                   <span>Fee</span>
-                  <span className="font-mono">{quoteLoading ? "…" : quote ? `${money(quote.feeFiat)} ${destinationCurrency}` : "—"}</span>
+                  <span className="font-mono tabular-nums">{quoteLoading ? "…" : quote ? `${money(quote.feeFiat)} ${destinationCurrency}` : "—"}</span>
                 </div>
               </div>
             </div>
@@ -402,7 +409,7 @@ export default function AppPage() {
                 <input
                   value={recipientName}
                   onChange={(e) => setRecipientName(e.target.value)}
-                  className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm"
+                  className={cn(CONTROL, CONTROL_DISABLED)}
                   placeholder="Jane Doe"
                 />
               </div>
@@ -412,7 +419,7 @@ export default function AppPage() {
                 <select
                   value={bankCode}
                   onChange={(e) => setBankCode(e.target.value)}
-                  className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm"
+                  className={cn(CONTROL, CONTROL_DISABLED)}
                   disabled={banksLoading}
                 >
                   {institutions.map((b) => (
@@ -429,7 +436,7 @@ export default function AppPage() {
                 <input
                   value={recipientAccount}
                   onChange={(e) => setRecipientAccount(e.target.value)}
-                  className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm"
+                  className={cn(CONTROL, CONTROL_DISABLED)}
                   placeholder="0123456789"
                 />
               </div>
@@ -507,8 +514,8 @@ export default function AppPage() {
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-3xl border border-zinc-800 bg-zinc-950/40 p-4">
-      <div className="text-sm font-semibold">{title}</div>
+    <div className="rounded-3xl border border-zinc-800/80 bg-zinc-950/40 p-4 shadow-sm shadow-black/20">
+      <div className="text-sm font-semibold text-zinc-100">{title}</div>
       <div className="mt-3">{children}</div>
     </div>
   );
@@ -549,16 +556,20 @@ function Disclosure({
 }) {
   const [open, setOpen] = useState(true);
   return (
-    <div className="rounded-3xl border border-zinc-800 bg-zinc-950/40">
+    <div className="rounded-3xl border border-zinc-800/80 bg-zinc-950/40 shadow-sm shadow-black/20">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="w-full px-4 py-4 flex items-center justify-between gap-3"
+        className={cn(
+          "w-full px-4 py-4 flex items-center justify-between gap-3 transition",
+          "hover:bg-white/[0.03] active:bg-white/[0.05]",
+          "focus:outline-none focus:ring-2 focus:ring-emerald-500/25 focus:ring-inset"
+        )}
       >
         <div className="text-left">
-          <div className="text-sm font-semibold">{title}</div>
+          <div className="text-sm font-semibold text-zinc-100">{title}</div>
           <div className="mt-1 text-xs text-zinc-500">{subtitle}</div>
         </div>
-        <ChevronDown className={cn("h-5 w-5 text-zinc-400 transition", open ? "rotate-180" : "")} />
+        <ChevronDown className={cn("h-5 w-5 text-zinc-400 transition-transform duration-200", open ? "rotate-180" : "")} />
       </button>
       {open && <div className="px-4 pb-4">{children}</div>}
     </div>
