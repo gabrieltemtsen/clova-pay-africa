@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X, ArrowRight, ShieldCheck } from "lucide-react";
+import { Menu, X, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export const Navbar = () => {
@@ -32,11 +32,11 @@ export const Navbar = () => {
                 <div className="flex justify-between items-center h-20">
                     {/* Logo */}
                     <div className="flex-shrink-0 flex items-center gap-2">
-                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center shadow-lg shadow-blue-500/30">
-                            <ShieldCheck className="w-6 h-6 text-white" />
-                        </div>
-                        <Link href="/" className="font-bold text-2xl tracking-tight">
-                            Clova<span className="text-blue-500">Pay</span>
+                        <Link href="/" className="flex items-center gap-2">
+                            <img src="/logo.svg" alt="Clova Pay Logo" className="w-10 h-10" />
+                            <span className="font-bold text-2xl tracking-tight">
+                                Clova<span className="text-blue-500">Pay</span>
+                            </span>
                         </Link>
                     </div>
 

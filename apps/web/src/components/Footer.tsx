@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ShieldCheck, Twitter, Github } from "lucide-react";
+import { Twitter, Github } from "lucide-react";
 
 export const Footer = () => {
     return (
@@ -11,9 +11,7 @@ export const Footer = () => {
 
                     <div className="col-span-1 md:col-span-1">
                         <Link href="/" className="flex items-center gap-2 mb-4">
-                            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center">
-                                <ShieldCheck className="w-5 h-5 text-white" />
-                            </div>
+                            <img src="/logo.svg" alt="Clova Pay Logo" className="w-8 h-8" />
                             <span className="font-bold text-xl tracking-tight">ClovaPay</span>
                         </Link>
                         <p className="text-gray-400 text-sm leading-relaxed mb-6">
