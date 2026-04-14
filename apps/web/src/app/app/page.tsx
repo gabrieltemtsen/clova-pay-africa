@@ -47,7 +47,7 @@ async function loadStacks() {
 
 export default function AppPage() {
   const [asset, setAsset] = useState<AssetKey>("USDC_BASE");
-  const [amountCrypto, setAmountCrypto] = useState<string>("10");
+  const [amountCrypto, setAmountCrypto] = useState<string>("");
   const [destinationCurrency, setDestinationCurrency] = useState<(typeof CORRIDORS)[number]>("NGN");
 
   const [institutions, setInstitutions] = useState<Institution[]>([]);
@@ -418,7 +418,7 @@ export default function AppPage() {
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <Label>Amount</Label>
-                  <div className="text-xs font-mono text-blue-400 bg-blue-500/10 px-2 py-1 rounded-md">{amountCrypto} {assetMeta.label}</div>
+                  <div className="text-xs font-mono text-blue-400 bg-blue-500/10 px-2 py-1 rounded-md">{amountCrypto || "0"} {assetMeta.label}</div>
                 </div>
                 <input
                   type="range"
@@ -438,16 +438,28 @@ export default function AppPage() {
                 />
               </div>
 
-              <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4 shadow-[0_0_30px_-15px_rgba(16,185,129,0.2)]">
-                <div className="text-xs font-medium text-emerald-400/80 uppercase tracking-widest">Recipient gets (Estimated)</div>
-                <div className="mt-2 text-3xl font-extrabold tracking-tight text-white drop-shadow-md">
-                  {quoteLoading ? "…" : quote ? `${money(quote.receiveFiat)} ${destinationCurrency}` : "—"}
-                </div>
-                <div className="mt-3 flex items-center justify-between text-xs text-gray-400 border-t border-white/5 pt-3">
-                  <span>Network + Conversion Fee</span>
-                  <span className="font-mono">{quoteLoading ? "…" : quote ? `${money(quote.feeFiat)} ${destinationCurrency}` : "—"}</span>
-                </div>
-              </div>
+              <AnimatePresence>
+                {amountCrypto && Number(amountCrypto) > 0 && (
+                  <motion.div 
+                    initial={{ opacity: 0, height: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, height: "auto", scale: 1 }}
+                    exit={{ opacity: 0, height: 0, scale: 0.95 }}
+                    transition={{ duration: 0.3 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4 shadow-[0_0_30px_-15px_rgba(16,185,129,0.2)]">
+                      <div className="text-xs font-medium text-emerald-400/80 uppercase tracking-widest">Recipient gets (Estimated)</div>
+                      <div className="mt-2 text-3xl font-extrabold tracking-tight text-white drop-shadow-md">
+                        {quoteLoading ? "…" : quote ? `${money(quote.receiveFiat)} ${destinationCurrency}` : "—"}
+                      </div>
+                      <div className="mt-3 flex items-center justify-between text-xs text-gray-400 border-t border-white/5 pt-3">
+                        <span>Network + Conversion Fee</span>
+                        <span className="font-mono">{quoteLoading ? "…" : quote ? `${money(quote.feeFiat)} ${destinationCurrency}` : "—"}</span>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </Card>
 
