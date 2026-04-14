@@ -302,12 +302,12 @@ export default function AppPage() {
   }, [flow.kind]);
 
   return (
-    <div className="min-h-screen bg-[#050C1A] text-zinc-50 relative overflow-x-hidden selection:bg-blue-500 selection:text-white pb-32">
+    <div className="min-h-screen bg-[#050C1A] text-zinc-50 relative overflow-x-hidden selection:bg-blue-500 selection:text-white">
       {/* Dynamic Background */}
       <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-blue-600/20 rounded-full blur-[120px] pointer-events-none" />
       <div className="absolute bottom-1/4 left-0 w-[500px] h-[500px] bg-purple-600/20 rounded-full blur-[120px] pointer-events-none" />
       
-      <div className="relative z-10 mx-auto max-w-xl px-4 pt-12 md:pt-20">
+      <div className="relative z-10 mx-auto max-w-xl px-4 pt-12 md:pt-20 pb-48">
         <motion.div 
            initial={{ opacity: 0, y: -20 }}
            animate={{ opacity: 1, y: 0 }}
