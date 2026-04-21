@@ -13,7 +13,7 @@ const CORRIDORS = ["NGN", "KES", "GHS", "UGX", "TZS", "MWK", "BRL", "XOF", "INR"
 
 const ASSETS: Array<{ key: AssetKey; label: string; chainLabel: string; kind: "evm" | "stacks"; decimals: number; tokenAddress?: `0x${string}`; chainId?: number }> = [
   { key: "cUSD_CELO", label: "cUSD", chainLabel: "Celo", kind: "evm", decimals: 18, tokenAddress: "0x765DE816845861e75A25fCA122bb6898B8B1282a", chainId: celo.id },
-  { key: "USDC_BASE", label: "USDC", chainLabel: "Base", kind: "evm", decimals: 6, tokenAddress: "0x833589fCD6eDb6E08f4c7C32D4f71b54bDa02913", chainId: base.id },
+  { key: "USDC_BASE", label: "USDC", chainLabel: "Base", kind: "evm", decimals: 6, tokenAddress: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", chainId: base.id },
   { key: "USDCX_STACKS", label: "USDCx", chainLabel: "Stacks", kind: "stacks", decimals: 6 },
 ];
 
