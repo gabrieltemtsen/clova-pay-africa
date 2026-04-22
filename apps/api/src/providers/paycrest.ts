@@ -51,7 +51,7 @@ async function paycrestRequest(
             "Accept": "application/json",
         },
         data: body,
-        timeout: 15000,
+        timeout: 30000,
         validateStatus: () => true, // Don't throw on any status code
     };
 
