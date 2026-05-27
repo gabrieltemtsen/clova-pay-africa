@@ -13,7 +13,18 @@ const paycrest = new PaycrestProvider();
 const ASSET_TO_PAYCREST: Record<string, { token: string; network: string }> = {
     cUSD_CELO: { token: "CUSD", network: "celo" },
     USDC_BASE: { token: "USDC", network: "base" },
-    // USDCX_STACKS: handled via Clarity contract — not routed through Paycrest directly
+    USDC_ARBITRUM: { token: "USDC", network: "arbitrum-one" },
+    USDT_ARBITRUM: { token: "USDT", network: "arbitrum-one" },
+    USDC_POLYGON: { token: "USDC", network: "polygon" },
+    USDT_POLYGON: { token: "USDT", network: "polygon" },
+    USDC_ETHEREUM: { token: "USDC", network: "ethereum" },
+    USDT_ETHEREUM: { token: "USDT", network: "ethereum" },
+    USDT_BSC: { token: "USDT", network: "bnb-smart-chain" },
+    USDC_BSC: { token: "USDC", network: "bnb-smart-chain" },
+    USDC_SCROLL: { token: "USDC", network: "scroll" },
+    USDT_SCROLL: { token: "USDT", network: "scroll" },
+    USDT_LISK: { token: "USDT", network: "lisk" },
+    USDC_LISK: { token: "USDC", network: "lisk" },
 };
 
 async function reconcileOrderStatus(orderId: string) {
@@ -34,7 +45,23 @@ async function reconcileOrderStatus(orderId: string) {
 }
 
 const orderSchema = z.object({
-    asset: z.enum(["cUSD_CELO", "USDC_BASE", "USDCX_STACKS"]),
+    asset: z.enum([
+        "cUSD_CELO",
+        "USDC_BASE",
+        "USDC_ARBITRUM",
+        "USDT_ARBITRUM",
+        "USDC_POLYGON",
+        "USDT_POLYGON",
+        "USDC_ETHEREUM",
+        "USDT_ETHEREUM",
+        "USDT_BSC",
+        "USDC_BSC",
+        "USDC_SCROLL",
+        "USDT_SCROLL",
+        "USDT_LISK",
+        "USDC_LISK",
+        "USDCX_STACKS"
+    ]),
     amountCrypto: z.string().min(1),
     destinationCurrency: z.string().optional().default("NGN"),
     recipient: z.object({

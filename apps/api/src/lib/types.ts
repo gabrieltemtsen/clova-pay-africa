@@ -1,4 +1,19 @@
-export type Asset = "cUSD_CELO" | "USDC_BASE" | "USDCX_STACKS";
+export type Asset =
+  | "cUSD_CELO"
+  | "USDC_BASE"
+  | "USDC_ARBITRUM"
+  | "USDT_ARBITRUM"
+  | "USDC_POLYGON"
+  | "USDT_POLYGON"
+  | "USDC_ETHEREUM"
+  | "USDT_ETHEREUM"
+  | "USDT_BSC"
+  | "USDC_BSC"
+  | "USDC_SCROLL"
+  | "USDT_SCROLL"
+  | "USDT_LISK"
+  | "USDC_LISK"
+  | "USDCX_STACKS";
 
 export type SupportedCurrency =
   | "NGN"

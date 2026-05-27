@@ -1,4 +1,5 @@
 import pg from "pg";
+import { type Asset } from "./types.js";
 
 export type PayoutRecord = {
   payoutId: string;
@@ -29,7 +30,7 @@ export type LiquidityProvider = {
 export type SettlementRecord = {
   settlementId: string;
   quoteId: string;
-  asset: "cUSD_CELO" | "USDC_BASE" | "USDCX_STACKS";
+  asset: Asset;
   amountCrypto: string;
   txHash: string;
   confirmations: number;
@@ -53,7 +54,7 @@ export type LedgerEntry = {
 
 export type OfframpOrder = {
   orderId: string;
-  asset: "cUSD_CELO" | "USDC_BASE" | "USDCX_STACKS";
+  asset: Asset;
   amountCrypto: string;
   rate: string;
   feeBps: number;

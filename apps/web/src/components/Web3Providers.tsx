@@ -3,17 +3,23 @@
 import { WagmiProvider, createConfig, http } from "wagmi";
 import { walletConnect, injected, coinbaseWallet } from "wagmi/connectors";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { base, celo } from "viem/chains";
+import { base, celo, arbitrum, polygon, mainnet, bsc, scroll, lisk } from "viem/chains";
 
 const queryClient = new QueryClient();
 
 const projectId = process.env.NEXT_PUBLIC_WC_PROJECT_ID;
 
 const config = createConfig({
-  chains: [base, celo],
+  chains: [base, celo, arbitrum, polygon, mainnet, bsc, scroll, lisk],
   transports: {
     [base.id]: http(),
     [celo.id]: http(),
+    [arbitrum.id]: http(),
+    [polygon.id]: http(),
+    [mainnet.id]: http(),
+    [bsc.id]: http(),
+    [scroll.id]: http(),
+    [lisk.id]: http(),
   },
   connectors: [
     injected(),

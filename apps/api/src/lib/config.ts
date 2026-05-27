@@ -19,14 +19,14 @@ export const config = {
     cUSD_CELO: Number(process.env.MIN_CONFIRMATIONS_CUSD_CELO || 1),
     USDC_BASE: Number(process.env.MIN_CONFIRMATIONS_USDC_BASE || 1),
     USDCX_STACKS: Number(process.env.MIN_CONFIRMATIONS_USDCX_STACKS || 1),
-  },
+  } as Record<string, number>,
   // Deposit wallets — used for USDCX_STACKS (Clarity contract address).
   // For USDC_BASE and cUSD_CELO, Paycrest provides its own deposit address per order.
   depositWallets: {
     cUSD_CELO: process.env.DEPOSIT_WALLET_CELO || "",
     USDC_BASE: process.env.DEPOSIT_WALLET_BASE || "",
     USDCX_STACKS: process.env.DEPOSIT_WALLET_STACKS || "",   // Clarity contract principal
-  },
+  } as Record<string, string>,
   orderExpiryMs: Number(process.env.ORDER_EXPIRY_MS || 30 * 60 * 1000),
   rpcUrls: {
     celo: process.env.RPC_URL_CELO || process.env.CELO_RPC_URL || "https://forno.celo.org",

@@ -24,6 +24,7 @@ import { config } from "./config.js";
 import { ledger } from "./ledger.js";
 import { PaycrestProvider } from "../providers/paycrest.js";
 import { verifyDeposit } from "./chainVerifier.js";
+import { type Asset } from "./types.js";
 
 const paycrest = new PaycrestProvider();
 
@@ -34,7 +35,7 @@ function sleep(ms: number) {
 export type CreditedInput = {
     quoteId?: string;
     orderId?: string;
-    asset: "cUSD_CELO" | "USDC_BASE" | "USDCX_STACKS";
+    asset: Asset;
     amountCrypto: string;
     txHash: string;
     confirmations: number;
@@ -227,6 +228,18 @@ export async function processCredited(input: CreditedInput) {
             const paycrestAssetMap: Record<string, { token: string; network: string }> = {
                 cUSD_CELO: { token: "CUSD", network: "celo" },
                 USDC_BASE: { token: "USDC", network: "base" },
+                USDC_ARBITRUM: { token: "USDC", network: "arbitrum-one" },
+                USDT_ARBITRUM: { token: "USDT", network: "arbitrum-one" },
+                USDC_POLYGON: { token: "USDC", network: "polygon" },
+                USDT_POLYGON: { token: "USDT", network: "polygon" },
+                USDC_ETHEREUM: { token: "USDC", network: "ethereum" },
+                USDT_ETHEREUM: { token: "USDT", network: "ethereum" },
+                USDT_BSC: { token: "USDT", network: "bnb-smart-chain" },
+                USDC_BSC: { token: "USDC", network: "bnb-smart-chain" },
+                USDC_SCROLL: { token: "USDC", network: "scroll" },
+                USDT_SCROLL: { token: "USDT", network: "scroll" },
+                USDT_LISK: { token: "USDT", network: "lisk" },
+                USDC_LISK: { token: "USDC", network: "lisk" },
             };
             const pa = paycrestAssetMap[order.asset];
             if (!pa) throw new Error(`no_paycrest_mapping_for_${order.asset}`);

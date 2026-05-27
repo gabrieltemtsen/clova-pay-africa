@@ -28,6 +28,18 @@ const PAYCREST_NETWORK: Record<string, string> = {
 const ASSET_TO_PAYCREST: Record<string, { token: string; network: string }> = {
   cUSD_CELO: { token: "CUSD", network: "celo" },
   USDC_BASE: { token: "USDC", network: "base" },
+  USDC_ARBITRUM: { token: "USDC", network: "arbitrum-one" },
+  USDT_ARBITRUM: { token: "USDT", network: "arbitrum-one" },
+  USDC_POLYGON: { token: "USDC", network: "polygon" },
+  USDT_POLYGON: { token: "USDT", network: "polygon" },
+  USDC_ETHEREUM: { token: "USDC", network: "ethereum" },
+  USDT_ETHEREUM: { token: "USDT", network: "ethereum" },
+  USDT_BSC: { token: "USDT", network: "bnb-smart-chain" },
+  USDC_BSC: { token: "USDC", network: "bnb-smart-chain" },
+  USDC_SCROLL: { token: "USDC", network: "scroll" },
+  USDT_SCROLL: { token: "USDT", network: "scroll" },
+  USDT_LISK: { token: "USDT", network: "lisk" },
+  USDC_LISK: { token: "USDC", network: "lisk" },
 };
 
 // Global in-memory cache for fallback mode

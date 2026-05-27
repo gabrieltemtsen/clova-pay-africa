@@ -1,14 +1,14 @@
 @import "tailwindcss";
 
 @theme {
-  --color-brand: #3b82f6; /* A vibrant blue */
+  --color-brand: #3b82f6;
   --color-brand-hover: #2563eb;
-  --color-bg-base: #0a0a0b; /* Very dark grayish blue */
-  --color-bg-surface: #121214;
-  --color-bg-elevated: #1a1a1c;
+  --color-bg-base: #060a14;
+  --color-bg-surface: #0c1220;
+  --color-bg-elevated: #111827;
   --color-text-base: #f3f4f6;
   --color-text-muted: #9ca3af;
-  --color-border: #27272a;
+  --color-border: #1e293b;
   
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
@@ -35,16 +35,213 @@
   }
 }
 
+/* ──────────── Glassmorphism ──────────── */
 .glassmorphism {
-  background: rgba(18, 18, 20, 0.7);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: rgba(12, 18, 32, 0.6);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
+.glass-card {
+  background: linear-gradient(135deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.01) 100%);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: 
+    0 0 0 1px rgba(255,255,255,0.02) inset,
+    0 20px 60px -15px rgba(0,0,0,0.5),
+    0 0 40px -20px rgba(59,130,246,0.1);
+}
+
+.glass-input {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  transition: all 0.2s ease;
+}
+
+.glass-input:focus {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(59, 130, 246, 0.4);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.08), 0 0 20px -5px rgba(59, 130, 246, 0.15);
+}
+
+/* ──────────── Gradient Text ──────────── */
 .gradient-text {
   background-clip: text;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
-  background-image: linear-gradient(to right, #60a5fa, #3b82f6);
+  background-image: linear-gradient(135deg, #60a5fa, #818cf8, #a78bfa);
+}
+
+/* ──────────── Animated Mesh Background ──────────── */
+@keyframes meshFloat {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  25% { transform: translate(30px, -20px) scale(1.05); }
+  50% { transform: translate(-20px, 15px) scale(0.95); }
+  75% { transform: translate(15px, 25px) scale(1.02); }
+}
+
+@keyframes meshFloat2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(-40px, 30px) scale(1.08); }
+  66% { transform: translate(25px, -15px) scale(0.92); }
+}
+
+.mesh-orb-1 {
+  animation: meshFloat 20s ease-in-out infinite;
+}
+
+.mesh-orb-2 {
+  animation: meshFloat2 25s ease-in-out infinite;
+}
+
+.mesh-orb-3 {
+  animation: meshFloat 30s ease-in-out infinite reverse;
+}
+
+/* ──────────── Glow Pulse ──────────── */
+@keyframes glowPulse {
+  0%, 100% { box-shadow: 0 0 30px -10px rgba(59, 130, 246, 0.4); }
+  50% { box-shadow: 0 0 50px -5px rgba(59, 130, 246, 0.6); }
+}
+
+.glow-pulse {
+  animation: glowPulse 2s ease-in-out infinite;
+}
+
+@keyframes glowPulseGreen {
+  0%, 100% { box-shadow: 0 0 30px -10px rgba(16, 185, 129, 0.4); }
+  50% { box-shadow: 0 0 50px -5px rgba(16, 185, 129, 0.6); }
+}
+
+.glow-pulse-green {
+  animation: glowPulseGreen 2s ease-in-out infinite;
+}
+
+/* ──────────── Shimmer Sweep ──────────── */
+@keyframes shimmerSweep {
+  0% { transform: translateX(-100%) skewX(-15deg); }
+  100% { transform: translateX(200%) skewX(-15deg); }
+}
+
+.shimmer-sweep::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent);
+  transform: translateX(-100%) skewX(-15deg);
+}
+
+.shimmer-sweep:hover::after {
+  animation: shimmerSweep 0.8s ease-out;
+}
+
+/* ──────────── Custom Scrollbar ──────────── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* ──────────── Status Dot Animation ──────────── */
+@keyframes statusPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.5); }
+}
+
+.status-dot {
+  animation: statusPulse 2s ease-in-out infinite;
+}
+
+/* ──────────── Confetti Burst ──────────── */
+@keyframes confettiBurst {
+  0% { transform: scale(0); opacity: 1; }
+  50% { transform: scale(1.2); opacity: 0.8; }
+  100% { transform: scale(1.5); opacity: 0; }
+}
+
+.confetti-burst {
+  animation: confettiBurst 1s ease-out forwards;
+}
+
+/* ──────────── Success Ring ──────────── */
+@keyframes successRing {
+  0% { transform: scale(0.5); opacity: 0; }
+  60% { transform: scale(1.1); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.success-ring {
+  animation: successRing 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+/* ──────────── Number Counter Animation ──────────── */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.4s ease-out forwards;
+}
+
+/* ──────────── Range Slider Styling ──────────── */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(59,130,246,0.3), rgba(129,140,248,0.3));
+  outline: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #3b82f6, #818cf8);
+  cursor: pointer;
+  box-shadow: 0 0 12px rgba(59, 130, 246, 0.5);
+  border: 2px solid rgba(255,255,255,0.2);
+  transition: all 0.15s ease;
+}
+
+input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.7);
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #3b82f6, #818cf8);
+  cursor: pointer;
+  box-shadow: 0 0 12px rgba(59, 130, 246, 0.5);
+  border: 2px solid rgba(255,255,255,0.2);
+}
+
+/* ──────────── Select Styling ──────────── */
+select {
+  background-image: none;
+}
+
+select option {
+  background: #0c1220;
+  color: #f3f4f6;
 }

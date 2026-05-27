@@ -3,20 +3,20 @@ import { ledger } from "../lib/ledger.js";
 
 export const statsRouter = Router();
 
-type Asset = "cUSD_CELO" | "USDC_BASE" | "USDCX_STACKS";
+type Asset = string;
 
-function explorerTxUrl(asset: Asset, txHash: string): string {
+function explorerTxUrl(asset: string, txHash: string): string {
   const hash = txHash.startsWith("0x") ? txHash : txHash;
-  switch (asset) {
-    case "USDC_BASE":
-      return `https://basescan.org/tx/${hash}`;
-    case "cUSD_CELO":
-      return `https://celoscan.io/tx/${hash}`;
-    case "USDCX_STACKS":
-      return `https://explorer.hiro.so/txid/${hash}?chain=mainnet`;
-    default:
-      return "";
-  }
+  if (asset.includes("BASE")) return `https://basescan.org/tx/${hash}`;
+  if (asset.includes("CELO")) return `https://celoscan.io/tx/${hash}`;
+  if (asset.includes("ARBITRUM")) return `https://arbiscan.io/tx/${hash}`;
+  if (asset.includes("POLYGON")) return `https://polygonscan.com/tx/${hash}`;
+  if (asset.includes("ETHEREUM")) return `https://etherscan.io/tx/${hash}`;
+  if (asset.includes("BSC")) return `https://bscscan.com/tx/${hash}`;
+  if (asset.includes("SCROLL")) return `https://scrollscan.com/tx/${hash}`;
+  if (asset.includes("LISK")) return `https://blockscout.lisk.com/tx/${hash}`;
+  if (asset.includes("STACKS")) return `https://explorer.hiro.so/txid/${hash}?chain=mainnet`;
+  return "";
 }
 
 statsRouter.get("/v1/stats", async (_req, res) => {
@@ -38,17 +38,9 @@ statsRouter.get("/v1/stats", async (_req, res) => {
       failed: 0,
       expired: 0,
     } as Record<string, number>,
-    byAsset: {
-      cUSD_CELO: 0,
-      USDC_BASE: 0,
-      USDCX_STACKS: 0,
-    } as Record<Asset, number>,
+    byAsset: {} as Record<Asset, number>,
     volume: {
-      crypto: {
-        cUSD_CELO: 0,
-        USDC_BASE: 0,
-        USDCX_STACKS: 0,
-      } as Record<Asset, number>,
+      crypto: {} as Record<Asset, number>,
       fiat: 0,
     },
   };
