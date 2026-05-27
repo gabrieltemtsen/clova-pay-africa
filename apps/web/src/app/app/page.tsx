@@ -107,6 +107,22 @@ async function loadStacks() {
 /* ═══════════════════════════════════════════════════════════════════════════ */
 
 export default function AppPage() {
+  /* ─── Farcaster Mini-App SDK ready hook ─── */
+  useEffect(() => {
+    const initFarcaster = async () => {
+      if (typeof window !== "undefined") {
+        try {
+          const { sdk } = await import("@farcaster/miniapp-sdk");
+          await sdk.actions.ready();
+          console.log("Farcaster Mini-App SDK ready on /app!");
+        } catch (error) {
+          console.error("Farcaster SDK ready error on /app:", error);
+        }
+      }
+    };
+    initFarcaster();
+  }, []);
+
   /* ─── Form State ─── */
   const [side, setSide] = useState<"buy" | "sell">("sell");
   const [asset, setAsset] = useState<AssetKey>("USDC_BASE");

@@ -45,25 +45,11 @@ const config = createConfig({
 });
 
 export function Web3Providers({ children }: { children: React.ReactNode }) {
-  useEffect(() => {
-    const initFarcaster = async () => {
-      if (typeof window !== "undefined") {
-        try {
-          const { sdk } = await import("@farcaster/miniapp-sdk");
-          await sdk.actions.ready();
-          console.log("Farcaster Mini-App SDK ready!");
-        } catch (error) {
-          console.error("Farcaster SDK ready error:", error);
-        }
-      }
-    };
-    initFarcaster();
-  }, []);
-
   return (
     <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
     </WagmiProvider>
   );
 }
+
 
