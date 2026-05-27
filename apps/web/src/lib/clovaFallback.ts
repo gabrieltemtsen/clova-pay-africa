@@ -35,6 +35,10 @@ const ordersDb = new Map<string, any>();
 
 async function paycrestRequest(method: "GET" | "POST", path: string, body?: unknown) {
   const apiKey = process.env.PAYCREST_API_KEY || "";
+  if (!apiKey) {
+    throw new Error("PAYCREST_API_KEY is not configured in the environment. Please check your .env file or environment variables.");
+  }
+
   const headers: Record<string, string> = {
     "API-Key": apiKey,
     "Content-Type": "application/json",
@@ -334,6 +338,10 @@ export async function checkBackendHealthy(): Promise<boolean> {
 
 async function paycrestV2Request(method: "GET" | "POST", path: string, body?: unknown) {
   const apiKey = process.env.PAYCREST_API_KEY || "";
+  if (!apiKey) {
+    throw new Error("PAYCREST_API_KEY is not configured in the environment. Please check your .env file or environment variables.");
+  }
+
   const headers: Record<string, string> = {
     "API-Key": apiKey,
     "Content-Type": "application/json",
