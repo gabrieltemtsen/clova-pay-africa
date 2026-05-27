@@ -24,6 +24,16 @@ export type Order = {
   createdAt: number;
   updatedAt: number;
   txHash?: string;
+  direction?: "onramp" | "offramp";
+  recipientAddress?: string;
+  providerAccount?: {
+    institution: string;
+    accountIdentifier: string;
+    accountName: string;
+    amountToTransfer: string;
+    currency: string;
+    validUntil?: string;
+  };
 };
 
 export type CreateOrderInput = {

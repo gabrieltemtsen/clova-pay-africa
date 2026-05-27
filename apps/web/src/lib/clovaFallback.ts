@@ -332,3 +332,113 @@ export async function checkBackendHealthy(): Promise<boolean> {
   }
 }
 
+async function paycrestV2Request(method: "GET" | "POST", path: string, body?: unknown) {
+  const apiKey = process.env.PAYCREST_API_KEY || "";
+  const headers: Record<string, string> = {
+    "API-Key": apiKey,
+    "Content-Type": "application/json",
+    "Accept": "application/json",
+  };
+
+  const response = await fetch(`https://api.paycrest.io/v2${path}`, {
+    method,
+    headers,
+    body: body ? JSON.stringify(body) : undefined,
+    signal: AbortSignal.timeout(15000),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Paycrest v2 HTTP error ${response.status}: ${text}`);
+  }
+
+  const payload = await response.json().catch(() => ({}));
+  if (payload?.status === "error" || payload?.status === false) {
+    throw new Error(`Paycrest v2 API error: ${payload?.message || "unknown"}`);
+  }
+
+  return payload?.data ?? payload;
+}
+
+export async function getLiveRateV2(network: string, token: string, amount: string, fiat: string) {
+  try {
+    const data = await paycrestV2Request("GET", `/rates/${network}/${token}/${amount}/${fiat}`);
+    return data;
+  } catch (err: any) {
+    console.warn(`[paycrest-v2-rate] Rate fetch failed for ${token}/${fiat}:`, err.message);
+    return null;
+  }
+}
+
+export async function createOnrampOrder(input: any) {
+  const { asset, amount, amountIn, sourceCurrency, destinationAsset, refundAccount, recipientAddress } = input;
+  const orderId = `ord_on_${randomBytes(14).toString("hex")}`;
+
+  const paycrestAsset = ASSET_TO_PAYCREST[destinationAsset];
+  if (!paycrestAsset) throw new Error("unsupported_destination_asset");
+
+  const pcOrder = await paycrestV2Request("POST", "/sender/orders", {
+    amount: String(amount),
+    amountIn: amountIn || "fiat",
+    source: {
+      type: "fiat",
+      currency: sourceCurrency,
+      refundAccount: {
+        institution: refundAccount.bankCode,
+        accountIdentifier: refundAccount.accountNumber,
+        accountName: refundAccount.accountName,
+      }
+    },
+    destination: {
+      type: "crypto",
+      currency: paycrestAsset.token,
+      recipient: {
+        address: recipientAddress,
+        network: paycrestAsset.network,
+      }
+    },
+    reference: orderId,
+  });
+
+  const order = {
+    orderId,
+    direction: "onramp",
+    asset: destinationAsset,
+    amount,
+    amountIn: amountIn || "fiat",
+    sourceCurrency,
+    refundAccount,
+    recipientAddress,
+    paycrestOrderId: pcOrder.id,
+    status: pcOrder.status || "initiated",
+    providerAccount: pcOrder.providerAccount,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  };
+
+  ordersDb.set(orderId, order);
+  return order;
+}
+
+export async function getOnrampOrder(orderId: string) {
+  const order = ordersDb.get(orderId);
+  if (!order) return null;
+
+  if (order.paycrestOrderId) {
+    try {
+      const pcOrder = await paycrestV2Request("GET", `/sender/orders/${order.paycrestOrderId}`);
+      order.status = pcOrder.status || order.status;
+      if (pcOrder.providerAccount) {
+        order.providerAccount = pcOrder.providerAccount;
+      }
+      order.updatedAt = Date.now();
+      ordersDb.set(orderId, order);
+    } catch (err: any) {
+      console.warn(`[getOnrampOrder] Live status fetch failed for ${order.paycrestOrderId}:`, err.message);
+    }
+  }
+
+  return order;
+}
+
+

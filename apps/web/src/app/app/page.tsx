@@ -46,6 +46,7 @@ async function loadStacks() {
 }
 
 export default function AppPage() {
+  const [side, setSide] = useState<"buy" | "sell">("sell");
   const [asset, setAsset] = useState<AssetKey>("USDC_BASE");
   const [amountCrypto, setAmountCrypto] = useState<string>("");
   const [destinationCurrency, setDestinationCurrency] = useState<(typeof CORRIDORS)[number]>("NGN");
@@ -59,6 +60,9 @@ export default function AppPage() {
 
   const [quote, setQuote] = useState<{ rate: string; feeFiat: string; receiveFiat: string } | null>(null);
   const [quoteLoading, setQuoteLoading] = useState(false);
+
+  const [buyRate, setBuyRate] = useState<number | null>(null);
+  const [onrampQuoteLoading, setOnrampQuoteLoading] = useState(false);
 
   const [flow, setFlow] = useState<FlowState>({ kind: "editing" });
 
@@ -118,8 +122,9 @@ export default function AppPage() {
     };
   }, [destinationCurrency]);
 
-  // Live quote preview
+  // Live quote preview (Offramp / Sell)
   useEffect(() => {
+    if (side !== "sell") return;
     let mounted = true;
     const t = setTimeout(async () => {
       setQuoteLoading(true);
@@ -148,7 +153,60 @@ export default function AppPage() {
       mounted = false;
       clearTimeout(t);
     };
-  }, [asset, amountCrypto, destinationCurrency]);
+  }, [asset, amountCrypto, destinationCurrency, side]);
+
+  // Live buy rate preview (Onramp / Buy)
+  useEffect(() => {
+    if (side !== "buy") return;
+    let mounted = true;
+    const t = setTimeout(async () => {
+      setOnrampQuoteLoading(true);
+      try {
+        const paycrestAsset = ASSETS.find((a) => a.key === asset)!;
+        const r = await fetch(`/api/clova/onramp/quote`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            network: paycrestAsset.chainId === celo.id ? "celo" : "base",
+            token: paycrestAsset.label,
+            amount: "1",
+            fiat: destinationCurrency,
+          }),
+        });
+        const d = await r.json();
+        if (!mounted) return;
+        if (r.ok && d?.buy?.rate) {
+          setBuyRate(Number(d.buy.rate));
+        } else {
+          setBuyRate(null);
+        }
+      } catch {
+        if (!mounted) return;
+        setBuyRate(null);
+      } finally {
+        if (mounted) setOnrampQuoteLoading(false);
+      }
+    }, 400);
+
+    return () => {
+      mounted = false;
+      clearTimeout(t);
+    };
+  }, [asset, destinationCurrency, side]);
+
+  const onrampCalculations = useMemo(() => {
+    if (side !== "buy" || !buyRate || !amountCrypto || isNaN(Number(amountCrypto))) return null;
+    const grossFiat = Number(amountCrypto);
+    const platformFee = grossFiat * 0.015; // 1.5% platform fee
+    const netFiat = grossFiat - platformFee;
+    const cryptoReceived = netFiat / buyRate;
+
+    return {
+      cryptoReceived: cryptoReceived.toFixed(6),
+      feeFiat: platformFee.toFixed(2),
+      buyRate,
+    };
+  }, [side, buyRate, amountCrypto]);
 
   async function connectEvmWallet() {
     if (!connectors.length) throw new Error("No wallet connectors available");
@@ -225,6 +283,113 @@ export default function AppPage() {
     return d;
   }
 
+  // Onramp order status polling
+  useEffect(() => {
+    if (flow.kind !== "deposit_sent" || !("order" in flow) || flow.order.direction !== "onramp") return;
+    
+    let active = true;
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/clova/onramp/order/${flow.order.orderId}`);
+        if (!res.ok) return;
+        const updated = await res.json();
+        
+        if (!active) return;
+        if (updated.status === "settled" || updated.status === "completed" || updated.status === "paid") {
+          setFlow({ kind: "done", order: updated });
+          clearInterval(interval);
+        } else if (updated.status === "failed" || updated.status === "expired") {
+          setFlow({ kind: "error", message: `Order was not paid and has status: ${updated.status}.` });
+          clearInterval(interval);
+        }
+      } catch (err) {
+        console.warn("Polling status failed:", err);
+      }
+    }, 5000);
+
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, [flow]);
+
+  async function createOnrampOrder(): Promise<any> {
+    if (!recipientName.trim()) throw new Error("Refund account name is required");
+    if (!recipientAccount.trim() || recipientAccount.trim().length < 7) throw new Error("Refund account number is too short");
+    if (!bankCode) throw new Error("Pick a bank/institution");
+
+    const payload = {
+      destinationAsset: asset,
+      amount: amountCrypto,
+      amountIn: "fiat",
+      sourceCurrency: destinationCurrency,
+      refundAccount: {
+        bankCode,
+        accountNumber: recipientAccount.trim(),
+        accountName: recipientName.trim(),
+      },
+      recipientAddress: address || stxAddress || "",
+    };
+
+    if (!payload.recipientAddress) {
+      throw new Error("Connect a wallet or specify a recipient address");
+    }
+
+    const r = await fetch(`/api/clova/onramp/order`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d?.detail || d?.error || "Failed to create onramp order");
+    return d;
+  }
+
+  async function onSubmitOnramp() {
+    try {
+      let currentAddress = address;
+      let currentStxAddress = stxAddress;
+
+      // Ensure wallet is connected
+      if (assetMeta.kind === "evm") {
+        if (!isConnected || !currentAddress) {
+          const res = await connectEvmWallet();
+          if (res && res.accounts && res.accounts.length > 0) {
+            currentAddress = res.accounts[0] as `0x${string}`;
+          } else {
+            throw new Error("Failed to connect EVM wallet");
+          }
+        }
+      } else {
+        if (!stacksConnected || !currentStxAddress) {
+          const stacks = await loadStacks();
+          await stacks.connectLeather();
+          const s = stacks.getStacksAuthState();
+          if (!s.connected || !s.stxAddress) {
+            throw new Error("Leather wallet not connected");
+          }
+          setStacksConnected(true);
+          setStxAddress(s.stxAddress);
+          currentStxAddress = s.stxAddress;
+        }
+      }
+
+      setFlow({ kind: "creating_order" });
+      const order = await createOnrampOrder();
+      setFlow({ kind: "deposit_sent", order });
+    } catch (e: any) {
+      setFlow({ kind: "error", message: e?.message || String(e) });
+    }
+  }
+
+  async function onSubmitOrder() {
+    if (side === "sell") {
+      await onCashout();
+    } else {
+      await onSubmitOnramp();
+    }
+  }
+
   async function onCashout() {
     try {
       let currentAddress = address;
@@ -298,8 +463,8 @@ export default function AppPage() {
     if (flow.kind === "awaiting_wallet") return { label: "Confirm in wallet…", disabled: true };
     if (flow.kind === "confirming") return { label: "Processing…", disabled: true };
     if (flow.kind === "done") return { label: "Done", disabled: true };
-    return { label: "Cash out", disabled: false };
-  }, [flow.kind]);
+    return { label: side === "sell" ? "Cash out" : "Buy Crypto", disabled: false };
+  }, [flow.kind, side]);
 
   return (
     <div className="min-h-screen bg-[#050C1A] text-zinc-50 relative overflow-x-hidden selection:bg-blue-500 selection:text-white">
@@ -314,8 +479,12 @@ export default function AppPage() {
            className="flex items-start justify-between gap-3 mb-8"
         >
           <div>
-            <h1 className="text-4xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400">Cash out</h1>
-            <p className="mt-2 text-sm text-blue-200/60">Borderless stablecoin to fiat conversion.</p>
+            <h1 className="text-4xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400">
+              {side === "sell" ? "Cash out" : "Buy Crypto"}
+            </h1>
+            <p className="mt-2 text-sm text-blue-200/60 font-medium">
+              {side === "sell" ? "Borderless stablecoin to fiat conversion." : "Instant local fiat to stablecoin purchase."}
+            </p>
           </div>
 
           <div className="text-right">
@@ -360,6 +529,36 @@ export default function AppPage() {
           </div>
         </motion.div>
 
+        {/* Segmented Buy/Sell Toggle */}
+        <div className="flex p-1.5 bg-white/5 border border-white/10 rounded-2xl mb-8 relative">
+          <button
+            onClick={() => {
+              setSide("sell");
+              setAmountCrypto("");
+              setQuote(null);
+            }}
+            className={cn(
+              "flex-1 py-3 text-center text-sm font-semibold rounded-xl transition-all relative z-10",
+              side === "sell" ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg" : "text-gray-400 hover:text-white"
+            )}
+          >
+            Cash out (Sell)
+          </button>
+          <button
+            onClick={() => {
+              setSide("buy");
+              setAmountCrypto("");
+              setBuyRate(null);
+            }}
+            className={cn(
+              "flex-1 py-3 text-center text-sm font-semibold rounded-xl transition-all relative z-10",
+              side === "buy" ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg" : "text-gray-400 hover:text-white"
+            )}
+          >
+            Buy Crypto (Onramp)
+          </button>
+        </div>
+
         <AnimatePresence>
           {flow.kind === "error" && (
             <motion.div 
@@ -383,7 +582,11 @@ export default function AppPage() {
                   <div className="relative">
                     <select
                       value={asset}
-                      onChange={(e) => setAsset(e.target.value as AssetKey)}
+                      onChange={(e) => {
+                        setAsset(e.target.value as AssetKey);
+                        setQuote(null);
+                        setBuyRate(null);
+                      }}
                       className="w-full appearance-none rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium text-white shadow-inner focus:border-blue-500/50 focus:outline-none focus:ring-1 focus:ring-blue-500/50 transition-all"
                     >
                       {ASSETS.map((a) => (
@@ -397,11 +600,15 @@ export default function AppPage() {
                 </div>
 
                 <div>
-                  <Label>Payout</Label>
+                  <Label>{side === "sell" ? "Payout" : "Deposit Fiat"}</Label>
                   <div className="relative">
                     <select
                       value={destinationCurrency}
-                      onChange={(e) => setDestinationCurrency(e.target.value as any)}
+                      onChange={(e) => {
+                        setDestinationCurrency(e.target.value as any);
+                        setQuote(null);
+                        setBuyRate(null);
+                      }}
                       className="w-full appearance-none rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium text-white shadow-inner focus:border-blue-500/50 focus:outline-none focus:ring-1 focus:ring-blue-500/50 transition-all"
                     >
                       {CORRIDORS.map((c) => (
@@ -417,14 +624,16 @@ export default function AppPage() {
 
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <Label>Amount</Label>
-                  <div className="text-xs font-mono text-blue-400 bg-blue-500/10 px-2 py-1 rounded-md">{amountCrypto || "0"} {assetMeta.label}</div>
+                  <Label>{side === "sell" ? "Amount to Sell" : "Amount to Spend"}</Label>
+                  <div className="text-xs font-mono text-blue-400 bg-blue-500/10 px-2 py-1 rounded-md">
+                    {amountCrypto || "0"} {side === "sell" ? assetMeta.label : destinationCurrency}
+                  </div>
                 </div>
                 <input
                   type="range"
-                  min={"1"}
-                  max={"500"}
-                  step={"1"}
+                  min={side === "sell" ? "1" : "500"}
+                  max={side === "sell" ? "500" : "500000"}
+                  step={side === "sell" ? "1" : "500"}
                   value={Number(amountCrypto || 0)}
                   onChange={(e) => setAmountCrypto(String(e.target.value))}
                   className="w-full accent-blue-500"
@@ -434,7 +643,7 @@ export default function AppPage() {
                   onChange={(e) => setAmountCrypto(e.target.value)}
                   inputMode="decimal"
                   className="mt-3 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-lg font-semibold text-white shadow-inner focus:border-blue-500/50 focus:outline-none focus:ring-1 focus:ring-blue-500/50 transition-all"
-                  placeholder="10"
+                  placeholder={side === "sell" ? "10" : "5000"}
                 />
               </div>
 
@@ -447,16 +656,33 @@ export default function AppPage() {
                     transition={{ duration: 0.3 }}
                     className="overflow-hidden"
                   >
-                    <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4 shadow-[0_0_30px_-15px_rgba(16,185,129,0.2)]">
-                      <div className="text-xs font-medium text-emerald-400/80 uppercase tracking-widest">Recipient gets (Estimated)</div>
-                      <div className="mt-2 text-3xl font-extrabold tracking-tight text-white drop-shadow-md">
-                        {quoteLoading ? "…" : quote ? `${money(quote.receiveFiat)} ${destinationCurrency}` : "—"}
+                    {side === "sell" ? (
+                      <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4 shadow-[0_0_30px_-15px_rgba(16,185,129,0.2)]">
+                        <div className="text-xs font-medium text-emerald-400/80 uppercase tracking-widest">Recipient gets (Estimated)</div>
+                        <div className="mt-2 text-3xl font-extrabold tracking-tight text-white drop-shadow-md">
+                          {quoteLoading ? "…" : quote ? `${money(quote.receiveFiat)} ${destinationCurrency}` : "—"}
+                        </div>
+                        <div className="mt-3 flex items-center justify-between text-xs text-gray-400 border-t border-white/5 pt-3">
+                          <span>Network + Conversion Fee</span>
+                          <span className="font-mono">{quoteLoading ? "…" : quote ? `${money(quote.feeFiat)} ${destinationCurrency}` : "—"}</span>
+                        </div>
                       </div>
-                      <div className="mt-3 flex items-center justify-between text-xs text-gray-400 border-t border-white/5 pt-3">
-                        <span>Network + Conversion Fee</span>
-                        <span className="font-mono">{quoteLoading ? "…" : quote ? `${money(quote.feeFiat)} ${destinationCurrency}` : "—"}</span>
+                    ) : (
+                      <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4 shadow-[0_0_30px_-15px_rgba(16,185,129,0.2)]">
+                        <div className="text-xs font-medium text-emerald-400/80 uppercase tracking-widest">You get (Estimated)</div>
+                        <div className="mt-2 text-3xl font-extrabold tracking-tight text-white drop-shadow-md">
+                          {onrampQuoteLoading ? "…" : onrampCalculations ? `${money(onrampCalculations.cryptoReceived)} ${assetMeta.label}` : "—"}
+                        </div>
+                        <div className="mt-3 flex items-center justify-between text-xs text-gray-400 border-t border-white/5 pt-3">
+                          <span>Platform Fee (1.5%)</span>
+                          <span className="font-mono">{onrampQuoteLoading ? "…" : onrampCalculations ? `${money(onrampCalculations.feeFiat)} ${destinationCurrency}` : "—"}</span>
+                        </div>
+                        <div className="mt-2 flex items-center justify-between text-xs text-gray-400">
+                          <span>Buy Rate</span>
+                          <span className="font-mono">{onrampQuoteLoading ? "…" : onrampCalculations ? `₦${money(onrampCalculations.buyRate)} / ${assetMeta.label}` : "—"}</span>
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -464,7 +690,11 @@ export default function AppPage() {
           </Card>
 
           {/* Recipient */}
-          <Disclosure title="Recipient details" subtitle={recipientName ? `${recipientName} • ${bankCode || ""}` : "Bank, account & name"} delay={0.2}>
+          <Disclosure 
+            title={side === "sell" ? "Recipient details" : "Fiat Refund details"} 
+            subtitle={recipientName ? `${recipientName} • ${bankCode || ""}` : (side === "sell" ? "Bank, account & name" : "Where fiat refunds go on failure")} 
+            delay={0.2}
+          >
             <div className="grid gap-4 pt-2">
               <div>
                 <Label>Full name</Label>
@@ -508,6 +738,35 @@ export default function AppPage() {
             </div>
           </Disclosure>
 
+          {/* Target wallet address notice for Buy side */}
+          {side === "buy" && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="rounded-[2rem] border border-blue-500/20 bg-blue-500/5 backdrop-blur-xl p-5 flex items-start gap-4 shadow-xl"
+            >
+              <div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-400 shrink-0">
+                <Sparkles className="w-4 h-4" />
+              </div>
+              <div className="text-xs text-gray-400 leading-normal flex-1 min-w-0">
+                <span className="font-semibold text-white">Target Wallet Address:</span>{" "}
+                {assetMeta.kind === "evm" ? (
+                  isConnected && address ? (
+                    <span className="font-mono text-blue-300 break-all block mt-1">{address}</span>
+                  ) : (
+                    <span className="text-amber-400 block mt-1">Not connected. Please connect your EVM wallet first.</span>
+                  )
+                ) : (
+                  stacksConnected && stxAddress ? (
+                    <span className="font-mono text-blue-300 break-all block mt-1">{stxAddress}</span>
+                  ) : (
+                    <span className="text-amber-400 block mt-1">Not connected. Please connect your Stacks wallet first.</span>
+                  )
+                )}
+              </div>
+            </motion.div>
+          )}
+
           {/* After order */}
           <AnimatePresence>
             {(flow.kind === "awaiting_wallet" || flow.kind === "deposit_sent" || flow.kind === "confirming" || flow.kind === "done") && "order" in flow && (
@@ -516,7 +775,8 @@ export default function AppPage() {
                   <Row label="Order ID" value={shorten(flow.order.orderId, 10, 6)} mono />
                   <Row label="Current State" value={<span className="capitalize text-blue-400">{flow.kind.replace('_', ' ')}</span>} />
 
-                  {flow.order.asset === "USDCX_STACKS" && (
+                  {/* Stacks offramp instructions */}
+                  {flow.order.direction !== "onramp" && flow.order.asset === "USDCX_STACKS" && (
                     <div className="rounded-2xl border border-blue-500/20 bg-blue-500/5 p-4 mt-2">
                       <div className="text-xs font-semibold uppercase tracking-wider text-blue-400">Stacks Manual Deposit</div>
                       <div className="mt-2 text-sm text-gray-300 leading-relaxed">
@@ -544,13 +804,52 @@ export default function AppPage() {
                     </div>
                   )}
 
+                  {/* Onramp fiat deposit instructions */}
+                  {flow.order.direction === "onramp" && flow.order.providerAccount && (
+                    <div className="rounded-2xl border border-blue-500/20 bg-blue-500/5 p-5 mt-2 space-y-4">
+                      <div className="text-xs font-semibold uppercase tracking-wider text-blue-400">Fiat Deposit Instructions</div>
+                      <div className="text-sm text-gray-300 leading-relaxed">
+                        Please make a local bank transfer of exactly <span className="font-extrabold text-emerald-400">{money(flow.order.providerAccount.amountToTransfer)} {flow.order.providerAccount.currency}</span> to the virtual account below:
+                      </div>
+                      
+                      <div className="grid gap-3 bg-black/40 rounded-2xl p-4 border border-white/5">
+                        <div>
+                          <div className="text-xs text-gray-500">Bank Name</div>
+                          <div className="font-semibold text-white mt-0.5">{flow.order.providerAccount.institution}</div>
+                        </div>
+                        <div className="border-t border-white/5 pt-2">
+                          <div className="text-xs text-gray-500">Account Number</div>
+                          <div className="flex items-center justify-between gap-2 mt-0.5">
+                            <div className="font-mono text-sm text-blue-200">{flow.order.providerAccount.accountIdentifier}</div>
+                            <CopyButton value={flow.order.providerAccount.accountIdentifier} />
+                          </div>
+                        </div>
+                        <div className="border-t border-white/5 pt-2">
+                          <div className="text-xs text-gray-500">Account Name</div>
+                          <div className="font-semibold text-white mt-0.5">{flow.order.providerAccount.accountName}</div>
+                        </div>
+                      </div>
+
+                      {flow.order.providerAccount.validUntil && (
+                        <div className="text-xs text-amber-400 bg-amber-400/5 border border-amber-400/10 p-3 rounded-xl flex items-center justify-between">
+                          <span>Instructions expire at</span>
+                          <span className="font-mono">{new Date(flow.order.providerAccount.validUntil).toLocaleTimeString()}</span>
+                        </div>
+                      )}
+
+                      <div className="text-xs text-gray-400 border-t border-white/5 pt-3 leading-relaxed">
+                        Once your deposit is received, your tokens will be automatically minted/sent to your wallet address: <span className="font-mono text-white break-all">{flow.order.recipientAddress}</span>.
+                      </div>
+                    </div>
+                  )}
+
                   {flow.kind === "deposit_sent" && (flow as any).txHash && <Row label="Transaction Hash" value={shorten((flow as any).txHash, 12, 10)} mono />}
                   {flow.kind === "done" && (
                     <motion.div 
                        initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
                        className="mt-2 inline-flex items-center gap-2 text-emerald-400 font-medium bg-emerald-500/10 px-4 py-2 rounded-xl"
                     >
-                       <CheckCircle2 className="h-5 w-5" /> Cashout complete and queued!
+                       <CheckCircle2 className="h-5 w-5" /> {flow.order.direction === "onramp" ? "Purchase complete and tokens deposited!" : "Cashout complete and queued!"}
                     </motion.div>
                   )}
                 </div>
@@ -566,7 +865,7 @@ export default function AppPage() {
         <div className="relative border-t border-white/10 glassmorphism shadow-[0_-20px_40px_rgba(0,0,0,0.5)]">
            <div className="mx-auto max-w-xl px-4 py-6">
              <button
-               onClick={onCashout}
+               onClick={onSubmitOrder}
                disabled={cta.disabled}
                className={cn(
                  "group relative w-full overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-4 text-lg font-semibold text-white shadow-[0_0_40px_-10px_rgba(59,130,246,0.6)] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#050C1A] transition-all",
@@ -585,7 +884,7 @@ export default function AppPage() {
              </button>
 
              <p className="mt-3 text-center text-xs text-gray-400 flex items-center justify-center gap-1">
-                You’ll approve a single secure wallet transaction.
+                {side === "sell" ? "You’ll approve a single secure wallet transaction." : "Funds transfer is fully secure."}
              </p>
            </div>
         </div>
