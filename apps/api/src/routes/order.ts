@@ -291,3 +291,120 @@ orderRouter.post("/v1/orders/:orderId/refund", async (req, res) => {
         note: "Trigger onchain refund from treasury/wallet and attach refund tx hash in your ops runbook.",
     });
 });
+
+// ----- POST /v1/onramp/quote  —  fetch buy rate ------
+orderRouter.post("/v1/onramp/quote", async (req, res) => {
+    const { network, token, amount, fiat } = req.body;
+    if (!network || !token || !amount || !fiat) {
+        return res.status(400).json({ error: "missing_fields" });
+    }
+    try {
+        const rate = await paycrest.getLiveRateV2(network, token, amount, fiat);
+        return res.json(rate);
+    } catch (err: any) {
+        return res.status(500).json({ error: "failed_to_fetch_rate", detail: err.message });
+    }
+});
+
+// ----- POST /v1/onramp/orders  —  create buy order ------
+orderRouter.post("/v1/onramp/orders", async (req, res) => {
+    const { asset, amount, amountIn, sourceCurrency, destinationAsset, refundAccount, recipientAddress } = req.body;
+    if (!amount || !sourceCurrency || !destinationAsset || !refundAccount || !recipientAddress) {
+        return res.status(400).json({ error: "missing_fields" });
+    }
+    const orderId = `ord_on_${randomBytes(14).toString("hex")}`;
+
+    const paycrestAsset = ASSET_TO_PAYCREST[destinationAsset];
+    if (!paycrestAsset) return res.status(400).json({ error: "unsupported_destination_asset" });
+
+    try {
+        const pcOrder = await paycrest.createOnrampOrder({
+            amount: String(amount),
+            amountIn: amountIn || "fiat",
+            source: {
+                type: "fiat",
+                currency: sourceCurrency,
+                refundAccount: {
+                    institution: refundAccount.bankCode,
+                    accountIdentifier: refundAccount.accountNumber,
+                    accountName: refundAccount.accountName,
+                }
+            },
+            destination: {
+                type: "crypto",
+                currency: paycrestAsset.token,
+                recipient: {
+                    address: recipientAddress,
+                    network: paycrestAsset.network,
+                }
+            },
+            reference: orderId,
+        });
+
+        const providerAccountStr = pcOrder.providerAccount ? JSON.stringify(pcOrder.providerAccount) : undefined;
+        const order: OfframpOrder = {
+            orderId,
+            asset: destinationAsset,
+            amountCrypto: String(amount),
+            rate: pcOrder.rate || "1.0",
+            feeBps: 150, // 1.5% default or fetched fee
+            feeFiat: "0",
+            receiveFiat: String(amount),
+            depositAddress: pcOrder.providerAccount?.accountIdentifier || "",
+            recipientName: refundAccount.accountName,
+            recipientAccount: refundAccount.accountNumber,
+            recipientBankCode: refundAccount.bankCode,
+            paycrestOrderId: pcOrder.id,
+            status: pcOrder.status || "initiated",
+            expiresAt: Date.now() + config.orderExpiryMs,
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+            direction: "onramp",
+            recipientAddress,
+            providerAccount: providerAccountStr,
+        };
+
+        await ledger.putOrder(order);
+        return res.json(order);
+    } catch (err: any) {
+        return res.status(500).json({ error: "failed_to_create_onramp_order", detail: err.message });
+    }
+});
+
+// ----- GET /v1/onramp/orders/:orderId  —  get buy order status ------
+orderRouter.get("/v1/onramp/orders/:orderId", async (req, res) => {
+    const { orderId } = req.params;
+    const order = await ledger.getOrder(orderId);
+    if (!order) return res.status(404).json({ error: "order_not_found" });
+
+    if (order.paycrestOrderId) {
+        try {
+            const pcOrder = await paycrest.getOnrampOrder(order.paycrestOrderId);
+            const status = pcOrder?.status || order.status;
+            const updates: Partial<OfframpOrder> = { status };
+            if (pcOrder?.providerAccount) {
+                updates.providerAccount = JSON.stringify(pcOrder.providerAccount);
+            }
+            await ledger.updateOrder(orderId, updates);
+        } catch (err: any) {
+            console.warn(`[onramp-status] failed to poll Paycrest status:`, err.message);
+        }
+    }
+
+    const freshOrder = await ledger.getOrder(orderId);
+    // Parse providerAccount back into object representation if returned
+    let parsedProviderAccount = undefined;
+    if (freshOrder?.providerAccount) {
+        try {
+            parsedProviderAccount = JSON.parse(freshOrder.providerAccount);
+        } catch {
+            // ignore
+        }
+    }
+
+    return res.json({
+        ...freshOrder,
+        providerAccount: parsedProviderAccount,
+    });
+});
+

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getLiveRateV2 } from "@/lib/clovaFallback";
+import { checkBackendHealthy, getLiveRateV2 } from "@/lib/clovaFallback";
 
 export const runtime = "nodejs";
 
@@ -11,6 +11,29 @@ export async function POST(req: Request) {
     const { network, token, amount, fiat } = body;
     if (!network || !token || !amount || !fiat) {
       return NextResponse.json({ error: "missing_fields" }, { status: 400 });
+    }
+
+    // Try proxying to healthy backend first
+    const base = process.env.CLOVA_API_URL;
+    const isHealthy = await checkBackendHealthy();
+    if (base && isHealthy) {
+      try {
+        console.log(`[quote-api] Proxying buy rate request to backend: ${base}/v1/onramp/quote`);
+        const r = await fetch(`${base}/v1/onramp/quote`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-api-key": process.env.CLOVA_OWNER_API_KEY || "",
+          },
+          body: JSON.stringify(body),
+        });
+        const data = await r.json().catch(() => ({}));
+        if (r.ok) {
+          return NextResponse.json(data);
+        }
+      } catch (err: any) {
+        console.warn("[quote-api] Proxy to backend failed, using local fallback:", err.message);
+      }
     }
 
     const data = await getLiveRateV2(network, token, amount, fiat);

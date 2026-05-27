@@ -529,8 +529,18 @@ export default function AppPage() {
           </div>
         </motion.div>
 
-        {/* Segmented Buy/Sell Toggle */}
-        <div className="flex p-1.5 bg-white/5 border border-white/10 rounded-2xl mb-8 relative">
+        {/* Segmented Buy/Sell Toggle with sliding animation */}
+        <div className="flex p-1.5 bg-white/5 border border-white/10 rounded-2xl mb-8 relative overflow-hidden backdrop-blur-xl">
+          <motion.div
+            layout
+            layoutId="activeTabIndicator"
+            className="absolute top-1.5 bottom-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl shadow-lg shadow-blue-500/20"
+            animate={{
+              left: side === "sell" ? "6px" : "calc(50% + 2px)",
+              right: side === "sell" ? "calc(50% + 2px)" : "6px",
+            }}
+            transition={{ type: "spring", stiffness: 380, damping: 30 }}
+          />
           <button
             onClick={() => {
               setSide("sell");
@@ -538,8 +548,8 @@ export default function AppPage() {
               setQuote(null);
             }}
             className={cn(
-              "flex-1 py-3 text-center text-sm font-semibold rounded-xl transition-all relative z-10",
-              side === "sell" ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg" : "text-gray-400 hover:text-white"
+              "flex-1 py-3 text-center text-sm font-semibold rounded-xl transition-all relative z-10 duration-200 focus:outline-none",
+              side === "sell" ? "text-white" : "text-gray-400 hover:text-white"
             )}
           >
             Cash out (Sell)
@@ -551,8 +561,8 @@ export default function AppPage() {
               setBuyRate(null);
             }}
             className={cn(
-              "flex-1 py-3 text-center text-sm font-semibold rounded-xl transition-all relative z-10",
-              side === "buy" ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg" : "text-gray-400 hover:text-white"
+              "flex-1 py-3 text-center text-sm font-semibold rounded-xl transition-all relative z-10 duration-200 focus:outline-none",
+              side === "buy" ? "text-white" : "text-gray-400 hover:text-white"
             )}
           >
             Buy Crypto (Onramp)
@@ -626,25 +636,34 @@ export default function AppPage() {
                 <div className="flex items-center justify-between mb-2">
                   <Label>{side === "sell" ? "Amount to Sell" : "Amount to Spend"}</Label>
                   <div className="text-xs font-mono text-blue-400 bg-blue-500/10 px-2 py-1 rounded-md">
-                    {amountCrypto || "0"} {side === "sell" ? assetMeta.label : destinationCurrency}
+                    Range: {side === "sell" ? "1 — 500" : "500 — 500,000"}
                   </div>
                 </div>
-                <input
-                  type="range"
-                  min={side === "sell" ? "1" : "500"}
-                  max={side === "sell" ? "500" : "500000"}
-                  step={side === "sell" ? "1" : "500"}
-                  value={Number(amountCrypto || 0)}
-                  onChange={(e) => setAmountCrypto(String(e.target.value))}
-                  className="w-full accent-blue-500"
-                />
-                <input
-                  value={amountCrypto}
-                  onChange={(e) => setAmountCrypto(e.target.value)}
-                  inputMode="decimal"
-                  className="mt-3 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-lg font-semibold text-white shadow-inner focus:border-blue-500/50 focus:outline-none focus:ring-1 focus:ring-blue-500/50 transition-all"
-                  placeholder={side === "sell" ? "10" : "5000"}
-                />
+
+                <div className="relative flex items-center">
+                  <input
+                    value={amountCrypto}
+                    onChange={(e) => setAmountCrypto(e.target.value)}
+                    inputMode="decimal"
+                    className="w-full rounded-2xl border border-white/10 bg-white/5 pl-4 pr-24 py-4 text-2xl font-bold text-white shadow-inner focus:border-blue-500/50 focus:outline-none focus:ring-1 focus:ring-blue-500/50 transition-all placeholder:text-gray-600"
+                    placeholder={side === "sell" ? "10" : "5000"}
+                  />
+                  <div className="absolute right-4 font-bold text-sm text-blue-400 bg-blue-500/10 px-3 py-1.5 rounded-xl border border-blue-500/20">
+                    {side === "sell" ? assetMeta.label : destinationCurrency}
+                  </div>
+                </div>
+
+                <div className="mt-4 px-1">
+                  <input
+                    type="range"
+                    min={side === "sell" ? "1" : "500"}
+                    max={side === "sell" ? "500" : "500000"}
+                    step={side === "sell" ? "1" : "500"}
+                    value={Number(amountCrypto || 0)}
+                    onChange={(e) => setAmountCrypto(String(e.target.value))}
+                    className="w-full h-1.5 rounded-lg appearance-none cursor-pointer bg-white/10 accent-blue-500 transition-all focus:outline-none focus:ring-0"
+                  />
+                </div>
               </div>
 
               <AnimatePresence>

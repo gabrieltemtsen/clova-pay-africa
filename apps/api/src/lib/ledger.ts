@@ -74,6 +74,9 @@ export type OfframpOrder = {
   expiresAt: number;
   createdAt: number;
   updatedAt: number;
+  direction?: "onramp" | "offramp";
+  recipientAddress?: string;
+  providerAccount?: string; // stringified JSON providerAccount details
 };
 
 type Ledger = {
@@ -272,6 +275,9 @@ class PostgresLedger implements Ledger {
       -- safe migration: add columns to existing tables if not already present
       alter table if exists offramp_orders add column if not exists paycrest_order_id text;
       alter table if exists offramp_orders add column if not exists funding_tx_hash text;
+      alter table if exists offramp_orders add column if not exists direction text default 'offramp';
+      alter table if exists offramp_orders add column if not exists recipient_address text;
+      alter table if exists offramp_orders add column if not exists provider_account text;
     `);
   }
 
@@ -324,6 +330,9 @@ class PostgresLedger implements Ledger {
       txHash: r.tx_hash || undefined, fundingTxHash: r.funding_tx_hash || undefined,
       failureReason: r.failure_reason || undefined,
       expiresAt: Number(r.expires_at), createdAt: Number(r.created_at), updatedAt: Number(r.updated_at),
+      direction: r.direction || "offramp",
+      recipientAddress: r.recipient_address || undefined,
+      providerAccount: r.provider_account || undefined,
     };
   }
 
@@ -424,17 +433,20 @@ class PostgresLedger implements Ledger {
     await this.pool.query(
       `insert into offramp_orders (order_id,asset,amount_crypto,rate,fee_bps,fee_ngn,receive_ngn,deposit_address,
        recipient_name,recipient_account,recipient_bank_code,recipient_code,paycrest_order_id,
-       status,payout_id,transfer_code,tx_hash,funding_tx_hash,failure_reason,expires_at,created_at,updated_at)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
+       status,payout_id,transfer_code,tx_hash,funding_tx_hash,failure_reason,expires_at,created_at,updated_at,
+       direction,recipient_address,provider_account)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25)
        on conflict (order_id) do update set status=excluded.status,recipient_code=excluded.recipient_code,
        paycrest_order_id=excluded.paycrest_order_id,payout_id=excluded.payout_id,
        transfer_code=excluded.transfer_code,tx_hash=excluded.tx_hash,funding_tx_hash=excluded.funding_tx_hash,
-       failure_reason=excluded.failure_reason,updated_at=excluded.updated_at`,
+       failure_reason=excluded.failure_reason,updated_at=excluded.updated_at,
+       direction=excluded.direction,recipient_address=excluded.recipient_address,provider_account=excluded.provider_account`,
       [o.orderId, o.asset, o.amountCrypto, o.rate, o.feeBps, o.feeFiat, o.receiveFiat, o.depositAddress,
       o.recipientName, o.recipientAccount, o.recipientBankCode, o.recipientCode || null,
       o.paycrestOrderId || null, o.status,
       o.payoutId || null, o.transferCode || null, o.txHash || null, o.fundingTxHash || null,
-      o.failureReason || null, o.expiresAt, o.createdAt, o.updatedAt],
+      o.failureReason || null, o.expiresAt, o.createdAt, o.updatedAt,
+      o.direction || "offramp", o.recipientAddress || null, o.providerAccount || null],
     );
   }
 

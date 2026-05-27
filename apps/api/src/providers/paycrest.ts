@@ -71,6 +71,38 @@ async function paycrestRequest(
     return payload?.data?.data ?? payload?.data ?? payload;
 }
 
+async function paycrestV2Request(
+    method: "GET" | "POST",
+    path: string,
+    body?: unknown,
+): Promise<any> {
+    const requestConfig = {
+        method,
+        url: `https://api.paycrest.io/v2${path}`,
+        headers: {
+            "API-Key": config.paycrestApiKey,
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        },
+        data: body,
+        timeout: 30000,
+        validateStatus: () => true, // Don't throw on any status code
+    };
+
+    const res = await axios(requestConfig);
+
+    // Check HTTP status first
+    if (res.status !== 200 && res.status !== 201) {
+        throw new Error(`http_${res.status}: ${res.statusText} - ${JSON.stringify(res.data)}`);
+    }
+
+    const payload = res.data;
+    if (payload?.status === "error" || payload?.status === false) {
+        throw new Error(`paycrest_api_error: ${payload?.message || "unknown"}`);
+    }
+    return payload?.data ?? payload;
+}
+
 export class PaycrestProvider {
     async getExchangeRate(token: string, amount: string, currency: string, network?: string): Promise<string> {
         if (isMock()) {
@@ -96,6 +128,22 @@ export class PaycrestProvider {
             return rate;
         } catch (e: any) {
             console.error("[paycrest] getLiveRate error:", e?.response?.data || e.message);
+            return null;
+        }
+    }
+
+    async getLiveRateV2(network: string, token: string, amount: string, fiat: string): Promise<any> {
+        if (isMock()) {
+            return {
+                buy: { rate: "1450.50", providerIds: ["etoMCRIY"], orderType: "regular", refundTimeoutMinutes: 2 },
+                sell: { rate: "1410.20", providerIds: ["MKgxdEsQ"], orderType: "regular", refundTimeoutMinutes: 2 }
+            };
+        }
+        try {
+            const data = await paycrestV2Request("GET", `/rates/${network}/${token}/${amount}/${fiat}`);
+            return data;
+        } catch (e: any) {
+            console.error("[paycrest] getLiveRateV2 error:", e.message);
             return null;
         }
     }
@@ -247,6 +295,33 @@ export class PaycrestProvider {
         }
     }
 
+    async createOnrampOrder(input: any): Promise<any> {
+        if (isMock()) {
+            return {
+                id: `pc_onramp_mock_${Date.now()}`,
+                status: "initiated",
+                reference: input.reference,
+                providerAccount: {
+                    institution: "Access Bank",
+                    accountIdentifier: "1234567890",
+                    accountName: "Paycrest Sandbox Deposit",
+                    amountToTransfer: String(input.amount),
+                    currency: input.source.currency,
+                    validUntil: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+                }
+            };
+        }
+        try {
+            console.log("[paycrest] Creating V2 onramp order with payload:", JSON.stringify(input, null, 2));
+            const data = await paycrestV2Request("POST", "/sender/orders", input);
+            return data;
+        } catch (e: any) {
+            const errorDetail = e?.response?.data || e?.data || { message: e.message };
+            console.error("[paycrest] createOnrampOrder error:", JSON.stringify(errorDetail, null, 2));
+            throw new Error(`paycrest_onramp_failed: ${errorDetail?.message || e.message}`);
+        }
+    }
+
     async getOrder(paycrestOrderId: string): Promise<PaycrestOrderResponse | null> {
         if (isMock()) {
             return null;
@@ -256,6 +331,22 @@ export class PaycrestProvider {
             return data as PaycrestOrderResponse;
         } catch (e: any) {
             console.error("[paycrest] getOrder error:", e.message);
+            return null;
+        }
+    }
+
+    async getOnrampOrder(paycrestOrderId: string): Promise<any> {
+        if (isMock()) {
+            return {
+                id: paycrestOrderId,
+                status: "initiated",
+            };
+        }
+        try {
+            const data = await paycrestV2Request("GET", `/sender/orders/${paycrestOrderId}`);
+            return data;
+        } catch (e: any) {
+            console.error("[paycrest] getOnrampOrder error:", e.message);
             return null;
         }
     }
