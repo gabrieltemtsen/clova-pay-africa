@@ -2,8 +2,10 @@
 
 import { WagmiProvider, createConfig, http } from "wagmi";
 import { walletConnect, injected, coinbaseWallet } from "wagmi/connectors";
+import { farcasterMiniApp } from "@farcaster/miniapp-wagmi-connector";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { base, celo, arbitrum, polygon, mainnet, bsc, scroll, lisk } from "viem/chains";
+import { useEffect } from "react";
 
 const queryClient = new QueryClient();
 
@@ -22,6 +24,7 @@ const config = createConfig({
     [lisk.id]: http(),
   },
   connectors: [
+    farcasterMiniApp(),
     injected(),
     ...(projectId
       ? [
@@ -42,9 +45,25 @@ const config = createConfig({
 });
 
 export function Web3Providers({ children }: { children: React.ReactNode }) {
+  useEffect(() => {
+    const initFarcaster = async () => {
+      if (typeof window !== "undefined") {
+        try {
+          const { sdk } = await import("@farcaster/miniapp-sdk");
+          await sdk.actions.ready();
+          console.log("Farcaster Mini-App SDK ready!");
+        } catch (error) {
+          console.error("Farcaster SDK ready error:", error);
+        }
+      }
+    };
+    initFarcaster();
+  }, []);
+
   return (
     <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
     </WagmiProvider>
   );
 }
+

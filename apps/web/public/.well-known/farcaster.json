@@ -1,0 +1,27 @@
+{
+  "accountAssociation": {
+    "header": "eyJmaWQiOjAsInR5cGUiOiJjdXN0b2R5Iiwia2V5IjoiMHgwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwIn0",
+    "payload": "eyJkb21haW4iOiJjbG92YS1wYXktYWZyaWNhLnZlcmNlbC5hcHAifQ",
+    "signature": "MHgwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAw"
+  },
+  "frame": {
+    "version": "1",
+    "name": "Clova Pay Africa",
+    "iconUrl": "https://clova-pay-africa.vercel.app/logo.png",
+    "homeUrl": "https://clova-pay-africa.vercel.app/app",
+    "imageUrl": "https://clova-pay-africa.vercel.app/opengraph-image.png",
+    "buttonTitle": "🚩 Start",
+    "splashImageUrl": "https://clova-pay-africa.vercel.app/logo.png",
+    "splashBackgroundColor": "#000000"
+  },
+  "miniapp": {
+    "version": "1",
+    "name": "Clova Pay Africa",
+    "iconUrl": "https://clova-pay-africa.vercel.app/logo.png",
+    "homeUrl": "https://clova-pay-africa.vercel.app/app",
+    "imageUrl": "https://clova-pay-africa.vercel.app/opengraph-image.png",
+    "buttonTitle": "🚩 Start",
+    "splashImageUrl": "https://clova-pay-africa.vercel.app/logo.png",
+    "splashBackgroundColor": "#000000"
+  }
+}
