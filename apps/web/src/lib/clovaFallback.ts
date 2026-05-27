@@ -36,7 +36,8 @@ const ordersDb = new Map<string, any>();
 async function paycrestRequest(method: "GET" | "POST", path: string, body?: unknown) {
   const apiKey = process.env.PAYCREST_API_KEY || "";
   if (!apiKey) {
-    throw new Error("PAYCREST_API_KEY is not configured in the environment. Please check your .env file or environment variables.");
+    console.error("[Clova Fallback] Configuration Error: PAYCREST_API_KEY is not defined in process.env!");
+    throw new Error("Service temporarily unavailable. Please try again in a few minutes.");
   }
 
   const headers: Record<string, string> = {
@@ -339,7 +340,8 @@ export async function checkBackendHealthy(): Promise<boolean> {
 async function paycrestV2Request(method: "GET" | "POST", path: string, body?: unknown) {
   const apiKey = process.env.PAYCREST_API_KEY || "";
   if (!apiKey) {
-    throw new Error("PAYCREST_API_KEY is not configured in the environment. Please check your .env file or environment variables.");
+    console.error("[Clova Fallback V2] Configuration Error: PAYCREST_API_KEY is not defined in process.env!");
+    throw new Error("Service temporarily unavailable. Please try again in a few minutes.");
   }
 
   const headers: Record<string, string> = {

@@ -365,7 +365,10 @@ orderRouter.post("/v1/onramp/orders", async (req, res) => {
         };
 
         await ledger.putOrder(order);
-        return res.json(order);
+        return res.json({
+            ...order,
+            providerAccount: pcOrder.providerAccount,
+        });
     } catch (err: any) {
         return res.status(500).json({ error: "failed_to_create_onramp_order", detail: err.message });
     }
