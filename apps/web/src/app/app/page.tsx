@@ -102,6 +102,31 @@ async function loadStacks() {
   return await import("@/lib/stacks");
 }
 
+function formatErrorMessage(msg: string): string {
+  if (!msg) return "An unexpected error occurred. Please try again.";
+
+  // Account / bank verification failure
+  if (msg.includes("Account validation failed") || msg.includes("failed to verify account")) {
+    return "Bank account verification failed. Please check that the account number and selected bank are correct.";
+  }
+
+  // Paycrest order failure proxy
+  if (msg.includes("paycrest_order_failed") || msg.includes("http_400") || msg.includes("Bad Request")) {
+    // Check if it's the account verification issue inside the payload
+    if (msg.includes("failed to verify account with any provider")) {
+      return "Bank account verification failed. Please double-check your account number and selected bank.";
+    }
+    return "Failed to validate your transaction details. Please check your recipient info and try again.";
+  }
+
+  // Generic/Downtime
+  if (msg.includes("Service temporarily unavailable") || msg.includes("fallback_failed")) {
+    return "Payment service is currently busy. Please try again in a few minutes.";
+  }
+
+  return msg;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════ */
 /*                              MAIN COMPONENT                                */
 /* ═══════════════════════════════════════════════════════════════════════════ */
@@ -353,6 +378,29 @@ export default function AppPage() {
   /* ─── Wallet Actions ─── */
   async function connectEvmWallet() {
     if (!connectors.length) throw new Error("No wallet connectors available");
+
+    // Check if we are running inside a Farcaster client iframe/context
+    const isFarcaster = typeof window !== "undefined" && (
+      window.parent !== window || 
+      /farcaster/i.test(navigator.userAgent)
+    );
+
+    if (isFarcaster) {
+      const fcConnector = connectors.find(
+        (c) => c.id === "farcasterMiniApp" || c.name.toLowerCase().includes("farcaster")
+      );
+      if (fcConnector) {
+        return await connectAsync({ connector: fcConnector });
+      }
+    }
+
+    // Default to standard injected (MetaMask, MiniPay, trust, etc.) for standard Web/MiniPay
+    const injectedConnector = connectors.find((c) => c.id === "injected");
+    if (injectedConnector) {
+      return await connectAsync({ connector: injectedConnector });
+    }
+
+    // Fallback to the first available connector if no matches found
     return await connectAsync({ connector: connectors[0] });
   }
 
@@ -776,21 +824,72 @@ export default function AppPage() {
         <AnimatePresence>
           {flow.kind === "error" && (
             <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              exit={{ opacity: 0, height: 0 }}
-              className="mb-5"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="mb-6 overflow-hidden"
             >
-              <div className="rounded-2xl border border-red-500/20 bg-red-500/5 backdrop-blur-md px-4 py-3.5 flex items-start gap-3 shadow-lg shadow-red-500/5">
-                <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
-                <div>
-                  <p className="text-sm font-medium text-red-300">{flow.message}</p>
-                  <button
-                    onClick={() => setFlow({ kind: "editing" })}
-                    className="mt-2 text-xs text-red-400 hover:text-red-300 underline underline-offset-2 transition-colors"
-                  >
-                    Dismiss and try again
-                  </button>
+              <div className="rounded-2xl border border-red-500/30 bg-gradient-to-br from-red-950/20 to-transparent backdrop-blur-xl p-5 shadow-xl shadow-red-950/30 relative">
+                <div className="absolute top-0 left-0 w-full h-[1.5px] bg-gradient-to-r from-red-500/30 via-red-500 to-transparent" />
+                
+                <div className="flex gap-3">
+                  <div className="w-8 h-8 rounded-xl bg-red-500/10 flex items-center justify-center text-red-400 shrink-0">
+                    <AlertTriangle className="w-4 h-4" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    {/* Error Header Title */}
+                    <div className="text-[10px] font-bold tracking-widest text-red-400 uppercase mb-1">
+                      {flow.message.includes("Account validation") || flow.message.includes("verify") 
+                        ? "Account Verification Warning" 
+                        : "Transaction Alert"}
+                    </div>
+                    
+                    {/* Main Error Description */}
+                    <p className="text-sm font-semibold text-white leading-snug">
+                      {formatErrorMessage(flow.message)}
+                    </p>
+
+                    {/* Step-by-Step Resolution Guide */}
+                    {(flow.message.includes("Account validation") || flow.message.includes("verify") || flow.message.includes("paycrest_order_failed")) && (
+                      <div className="mt-4 border-t border-white/[0.05] pt-3.5">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-2">
+                          Standard Resolution Checklist:
+                        </p>
+                        <ul className="text-xs text-gray-400 space-y-2">
+                          <li className="flex items-start gap-2">
+                            <span className="text-red-400 font-bold">•</span>
+                            <span>Verify the **account number** has exactly 10 digits.</span>
+                          </li>
+                          <li className="flex items-start gap-2">
+                            <span className="text-red-400 font-bold">•</span>
+                            <span>Double-check that the correct **recipient bank** is selected.</span>
+                          </li>
+                          <li className="flex items-start gap-2">
+                            <span className="text-red-400 font-bold">•</span>
+                            <span>If the bank network is congested, try again in a few minutes.</span>
+                          </li>
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* Actionable Resolution Row */}
+                    <div className="mt-5 flex flex-wrap items-center gap-3.5 pt-3 border-t border-white/[0.05]">
+                      <button
+                        onClick={() => setFlow({ kind: "editing" })}
+                        className="rounded-xl bg-red-500/15 border border-red-500/30 px-3.5 py-2 text-xs font-semibold text-red-200 hover:bg-red-500/25 transition-all"
+                      >
+                        Dismiss & Edit Info
+                      </button>
+                      <a
+                        href="https://t.me/gabrieltemtsen"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="rounded-xl bg-white/[0.03] border border-white/[0.06] hover:bg-white/[0.08] px-3.5 py-2 text-xs font-semibold text-gray-300 transition-all inline-flex items-center gap-1.5"
+                      >
+                        <span>✈️</span> Support Chat
+                      </a>
+                    </div>
+                  </div>
                 </div>
               </div>
             </motion.div>
