@@ -385,23 +385,29 @@ export default function AppPage() {
       /farcaster/i.test(navigator.userAgent)
     );
 
+    let activeConnector = connectors[0];
+
     if (isFarcaster) {
       const fcConnector = connectors.find(
         (c) => c.id === "farcasterMiniApp" || c.name.toLowerCase().includes("farcaster")
       );
-      if (fcConnector) {
-        return await connectAsync({ connector: fcConnector });
+      if (fcConnector) activeConnector = fcConnector;
+    } else {
+      // Default to standard injected (MetaMask, MiniPay, trust, etc.) for standard Web/MiniPay
+      const injectedConnector = connectors.find((c) => c.id === "injected");
+      if (injectedConnector) activeConnector = injectedConnector;
+    }
+
+    try {
+      return await connectAsync({ connector: activeConnector });
+    } catch (err: any) {
+      // If the connector is already connected, swallow the error and return success state
+      if (err?.message?.includes("already connected") || err?.message?.includes("Connector already connected")) {
+        console.log("[Wallet] Connector already connected, bypassing exception.");
+        return { accounts: address ? [address] : [] };
       }
+      throw err;
     }
-
-    // Default to standard injected (MetaMask, MiniPay, trust, etc.) for standard Web/MiniPay
-    const injectedConnector = connectors.find((c) => c.id === "injected");
-    if (injectedConnector) {
-      return await connectAsync({ connector: injectedConnector });
-    }
-
-    // Fallback to the first available connector if no matches found
-    return await connectAsync({ connector: connectors[0] });
   }
 
   async function ensureEvmChain(targetChainId: number) {
@@ -715,6 +721,10 @@ export default function AppPage() {
                   if (isConnected) await disconnectAsync();
                   else await connectEvmWallet();
                 } catch (e: any) {
+                  if (e?.message?.includes("already connected") || e?.message?.includes("Connector already connected")) {
+                    console.log("[Wallet] Ignored already connected error in button event.");
+                    return;
+                  }
                   setFlow({ kind: "error", message: e?.message || "Wallet action failed" });
                 }
               }}
