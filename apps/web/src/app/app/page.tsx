@@ -10,7 +10,7 @@ import {
 import type { AssetKey, CreateOrderInput, Institution, Order } from "@/lib/clova";
 import { cn } from "@/lib/utils";
 import { erc20Abi, parseUnits, formatUnits } from "viem";
-import { useAccount, useConnect, useDisconnect, useSwitchChain, useWriteContract, usePublicClient, useBalance } from "wagmi";
+import { useAccount, useConnect, useDisconnect, useSwitchChain, useWriteContract, usePublicClient, useBalance, useReconnect } from "wagmi";
 import { base, celo, arbitrum, polygon, mainnet, bsc, scroll, lisk } from "viem/chains";
 
 /* ────────────────────────────────── Constants ────────────────────────────────── */
@@ -132,7 +132,9 @@ function formatErrorMessage(msg: string): string {
 /* ═══════════════════════════════════════════════════════════════════════════ */
 
 export default function AppPage() {
-  /* ─── Farcaster Mini-App SDK ready hook ─── */
+  const { reconnect } = useReconnect();
+
+  /* ─── Farcaster Mini-App & Wagmi Auto-Reconnect hook ─── */
   useEffect(() => {
     const initFarcaster = async () => {
       if (typeof window !== "undefined") {
@@ -146,7 +148,8 @@ export default function AppPage() {
       }
     };
     initFarcaster();
-  }, []);
+    reconnect();
+  }, [reconnect]);
 
   /* ─── Form State ─── */
   const [side, setSide] = useState<"buy" | "sell">("sell");
