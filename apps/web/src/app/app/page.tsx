@@ -1059,6 +1059,37 @@ export default function AppPage() {
               </motion.div>
             )}
           </AnimatePresence>
+
+          {/* ─── Support / Help Section ─── */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 0.6 }}
+            whileHover={{ opacity: 1 }}
+            className="mt-10 text-center transition-opacity duration-300"
+          >
+            <p className="text-[9px] text-gray-500 uppercase tracking-widest mb-2.5 font-bold">
+              Need assistance with your cashout?
+            </p>
+            <div className="inline-flex items-center justify-center gap-4 bg-white/[0.02] border border-white/[0.04] backdrop-blur-md rounded-2xl px-4.5 py-2.5 text-xs text-gray-400">
+              <a 
+                href="https://warpcast.com/gabedev.eth" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="hover:text-blue-400 transition-colors inline-flex items-center gap-1.5 font-medium"
+              >
+                <span className="text-[10px]">🟣</span> Warpcast
+              </a>
+              <div className="w-px h-3 bg-white/10" />
+              <a 
+                href="https://t.me/gabrieltemtsen" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="hover:text-blue-400 transition-colors inline-flex items-center gap-1.5 font-medium"
+              >
+                <span className="text-[10px]">✈️</span> Telegram
+              </a>
+            </div>
+          </motion.div>
         </div>
       </div>
 
