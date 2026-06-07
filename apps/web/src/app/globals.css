@@ -20,12 +20,28 @@
     --foreground: var(--color-text-base);
   }
 
+  /* ── Mobile overscroll prevention ── */
+  html {
+    overscroll-behavior: none;
+    overflow: hidden;
+    height: 100%;
+    /* Prevent iOS elastic overscroll on the html element */
+    position: fixed;
+    width: 100%;
+  }
+
   body {
     background-color: var(--background);
     color: var(--foreground);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    /* Let body scroll within the fixed html */
+    overflow-y: auto;
+    overflow-x: hidden;
+    height: 100%;
+    overscroll-behavior-y: none;
+    -webkit-overflow-scrolling: touch;
   }
 }
 

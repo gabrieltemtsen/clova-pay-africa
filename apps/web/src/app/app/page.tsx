@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   CheckCircle2, ChevronDown, Copy, Loader2, Wallet, Sparkles,
@@ -151,6 +151,9 @@ export default function AppPage() {
     reconnect();
   }, [reconnect]);
 
+  /* ─── Error auto-scroll ref ─── */
+  const errorBannerRef = useRef<HTMLDivElement>(null);
+
   /* ─── Form State ─── */
   const [side, setSide] = useState<"buy" | "sell">("sell");
   const [asset, setAsset] = useState<AssetKey>("USDC_BASE");
@@ -171,6 +174,13 @@ export default function AppPage() {
   const [onrampQuoteLoading, setOnrampQuoteLoading] = useState(false);
 
   const [flow, setFlow] = useState<FlowState>({ kind: "editing" });
+
+  /* Auto-scroll to error banner when error occurs */
+  useEffect(() => {
+    if (flow.kind === "error" && errorBannerRef.current) {
+      errorBannerRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [flow.kind]);
 
   /* ─── Wallet Balance State ─── */
   const [tokenBalance, setTokenBalance] = useState<string | null>(null);
@@ -686,7 +696,7 @@ export default function AppPage() {
   /* ═════════════════════════════════ RENDER ═════════════════════════════════ */
 
   return (
-    <div className="min-h-screen bg-[#050a14] text-zinc-50 relative overflow-x-hidden selection:bg-blue-500 selection:text-white">
+    <div className="min-h-screen bg-[#050a14] text-zinc-50 relative overflow-x-hidden selection:bg-blue-500 selection:text-white" style={{ overscrollBehaviorY: "none", touchAction: "manipulation" }}>
       {/* ─── Animated Mesh Background ─── */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
         <div className="mesh-orb-1 absolute -top-32 -right-32 w-[600px] h-[600px] bg-blue-600/15 rounded-full blur-[150px]" />
@@ -837,6 +847,7 @@ export default function AppPage() {
         <AnimatePresence>
           {flow.kind === "error" && (
             <motion.div
+              ref={errorBannerRef}
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
@@ -1210,6 +1221,32 @@ export default function AppPage() {
         <div className="absolute inset-0 bg-gradient-to-t from-[#050a14] via-[#050a14]/95 to-transparent pointer-events-none" />
         <div className="relative border-t border-white/[0.04]">
           <div className="mx-auto max-w-lg px-4 py-5">
+            {/* ─── Inline Error Toast (visible near CTA without scrolling) ─── */}
+            <AnimatePresence>
+              {flow.kind === "error" && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10, height: 0 }}
+                  animate={{ opacity: 1, y: 0, height: "auto" }}
+                  exit={{ opacity: 0, y: 10, height: 0 }}
+                  transition={{ duration: 0.25 }}
+                  className="mb-3 overflow-hidden"
+                >
+                  <div className="flex items-center gap-2.5 rounded-xl border border-red-500/25 bg-red-950/30 backdrop-blur-md px-3.5 py-2.5">
+                    <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
+                    <p className="text-xs text-red-200 font-medium flex-1 min-w-0 line-clamp-2">
+                      {formatErrorMessage(flow.message)}
+                    </p>
+                    <button
+                      onClick={() => setFlow({ kind: "editing" })}
+                      className="text-[10px] text-red-400 font-bold uppercase tracking-wider shrink-0 hover:text-red-300 transition-colors"
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             <button
               onClick={onSubmitOrder}
               disabled={cta.disabled}
