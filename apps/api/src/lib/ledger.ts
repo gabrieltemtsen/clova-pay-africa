@@ -191,7 +191,22 @@ class MemoryLedger implements Ledger {
 class PostgresLedger implements Ledger {
   private pool: pg.Pool;
   constructor(databaseUrl: string) {
-    this.pool = new pg.Pool({ connectionString: databaseUrl, ssl: { rejectUnauthorized: false } });
+    this.pool = new pg.Pool({
+      connectionString: databaseUrl,
+      ssl: { rejectUnauthorized: false },
+      // Connection resilience for Railway / managed Postgres proxies
+      max: 10,                            // max connections in pool
+      idleTimeoutMillis: 30_000,          // close idle connections after 30s
+      connectionTimeoutMillis: 10_000,    // fail fast if can't connect in 10s
+    });
+
+    // ⚠️ CRITICAL: handle pool-level errors to prevent process crash.
+    // Railway's Postgres proxy can terminate idle connections at any time,
+    // emitting an 'error' event on the pool. Without this handler, Node.js
+    // throws an unhandled 'error' event and kills the process.
+    this.pool.on("error", (err) => {
+      console.error("[PostgresLedger] idle client error (connection dropped) — pool will reconnect:", err.message);
+    });
   }
 
   async init() {

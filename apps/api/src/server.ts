@@ -1,6 +1,19 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
+
+// ── Process-level safety nets ──────────────────────────────────────────────
+// Prevent transient errors (e.g. dropped Postgres connections, Hiro API 503s)
+// from killing the Railway deployment.
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("[process] unhandledRejection — keeping process alive:", reason);
+});
+
+process.on("uncaughtException", (err) => {
+  // Log but do NOT exit — pg-pool connection drops are the main culprit.
+  // If the error is truly fatal the process will be restarted by Railway anyway.
+  console.error("[process] uncaughtException — keeping process alive:", err.message);
+});
 import { config } from "./lib/config.js";
 import { healthRouter } from "./routes/health.js";
 import { banksRouter } from "./routes/banks.js";
