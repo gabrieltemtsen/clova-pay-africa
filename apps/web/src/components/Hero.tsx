@@ -4,6 +4,7 @@
 import { motion } from "framer-motion";
 import { ArrowRight, Banknote, Coins, Zap } from "lucide-react";
 import Link from "next/link";
+import { LiveProofStrip } from "./LiveProofStrip";
 
 const fadeInUp = {
     hidden: { opacity: 0, y: 30 },
@@ -42,7 +43,7 @@ export const Hero = () => {
                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
                         <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
                     </span>
-                    Phase 1 live · Nigeria open · more corridors coming
+                    Live · NGN, KES, GHS &amp; UGX corridors · agent-ready
                 </motion.div>
 
                 {/* Headline */}
@@ -62,7 +63,7 @@ export const Hero = () => {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.6, delay: 0.2 }}
                 >
-                    Clova Pay Africa converts stablecoins into local fiat and lands the money directly in a bank account — automatically. Nigeria is live. More African corridors coming.
+                    Clova Pay Africa converts stablecoins into local currency and lands the money directly in a bank account or mobile wallet — automatically. Nigeria, Kenya, Ghana and Uganda, with more corridors coming.
                 </motion.p>
 
                 <motion.div
@@ -89,9 +90,12 @@ export const Hero = () => {
                     </Link>
                 </motion.div>
 
+                {/* Live network proof */}
+                <LiveProofStrip />
+
                 {/* Feature pills */}
                 <motion.div
-                    className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-24 max-w-5xl w-full"
+                    className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-16 max-w-5xl w-full"
                     variants={staggerContainer}
                     initial="hidden"
                     animate="visible"
@@ -104,8 +108,8 @@ export const Hero = () => {
                         },
                         {
                             icon: <Banknote className="w-6 h-6 text-emerald-400" />,
-                            title: "Direct bank settlement",
-                            desc: "Naira lands in any Nigerian bank account — GTB, Access, Zenith, First Bank and more."
+                            title: "Local settlement, four currencies",
+                            desc: "NGN, KES, GHS and UGX — straight to bank accounts and mobile money wallets."
                         },
                         {
                             icon: <Zap className="w-6 h-6 text-purple-400" />,
