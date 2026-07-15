@@ -9,6 +9,8 @@ import {
 } from "lucide-react";
 import type { AssetKey, CreateOrderInput, Institution, Order } from "@/lib/clova";
 import { cn } from "@/lib/utils";
+import { OrderHistory } from "@/components/OrderHistory";
+import { saveStoredOrder } from "@/lib/orderHistory";
 import { erc20Abi, parseUnits, formatUnits } from "viem";
 import { useAccount, useConnect, useDisconnect, useSwitchChain, useWriteContract, usePublicClient, useBalance, useReconnect } from "wagmi";
 import { base, celo, arbitrum, polygon, mainnet, bsc, scroll, lisk } from "viem/chains";
@@ -454,6 +456,18 @@ export default function AppPage() {
     });
     const d = await r.json();
     if (!r.ok) throw new Error(d?.userMessage || d?.detail || d?.error || "Failed to create order");
+
+    saveStoredOrder({
+      orderId: d.orderId,
+      direction: "offramp",
+      asset: d.asset || asset,
+      amountCrypto: d.amountCrypto || amountCrypto,
+      destinationCurrency: d.destinationCurrency || destinationCurrency,
+      receiveFiat: d.receiveFiat,
+      status: d.status || "awaiting_deposit",
+      createdAt: d.createdAt || Date.now(),
+    });
+
     return d as Order;
   }
 
@@ -549,6 +563,17 @@ export default function AppPage() {
     });
     const d = await r.json();
     if (!r.ok) throw new Error(d?.detail || d?.error || "Failed to create onramp order");
+
+    saveStoredOrder({
+      orderId: d.orderId,
+      direction: "onramp",
+      asset: d.asset || asset,
+      amountCrypto: d.amountCrypto || amountCrypto,
+      destinationCurrency: d.destinationCurrency || destinationCurrency,
+      status: d.status || "initiated",
+      createdAt: d.createdAt || Date.now(),
+    });
+
     return d;
   }
 
@@ -705,7 +730,9 @@ export default function AppPage() {
       </div>
 
       {/* ─── Main Content ─── */}
-      <div className="relative z-10 mx-auto max-w-lg px-4 pt-8 md:pt-14 pb-48">
+      <div className="relative z-10 mx-auto w-full max-w-lg lg:max-w-6xl px-4 sm:px-6 pt-8 md:pt-14 pb-48">
+       <div className="lg:grid lg:grid-cols-[minmax(0,32rem)_minmax(0,1fr)] lg:gap-10 lg:items-start">
+        <div className="min-w-0">
 
         {/* ─── Header ─── */}
         <motion.div
@@ -1214,13 +1241,23 @@ export default function AppPage() {
             </div>
           </motion.div>
         </div>
+
+        </div>
+
+        {/* ─── Order History (below form on mobile, right column on desktop) ─── */}
+        <aside className="mt-10 lg:mt-0 lg:sticky lg:top-8 min-w-0">
+          <OrderHistory />
+        </aside>
+       </div>
       </div>
 
       {/* ─── Sticky CTA ─── */}
       <div className="fixed bottom-0 left-0 right-0 z-50">
         <div className="absolute inset-0 bg-gradient-to-t from-[#050a14] via-[#050a14]/95 to-transparent pointer-events-none" />
         <div className="relative border-t border-white/[0.04]">
-          <div className="mx-auto max-w-lg px-4 py-5">
+          <div className="mx-auto w-full max-w-lg lg:max-w-6xl px-4 sm:px-6 py-5">
+           <div className="lg:grid lg:grid-cols-[minmax(0,32rem)_minmax(0,1fr)] lg:gap-10">
+            <div className="min-w-0">
             {/* ─── Inline Error Toast (visible near CTA without scrolling) ─── */}
             <AnimatePresence>
               {flow.kind === "error" && (
@@ -1271,6 +1308,8 @@ export default function AppPage() {
               <Shield className="w-3 h-3" />
               {side === "sell" ? "Secured by on-chain verification" : "Funds transfer is fully encrypted"}
             </p>
+            </div>
+           </div>
           </div>
         </div>
       </div>
