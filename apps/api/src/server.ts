@@ -44,6 +44,7 @@ app.use(healthRouter);
 app.use(banksRouter);   // public resource listing
 app.use(webhookRouter); // provider callback; never paid
 app.use(watcherRouter); // watcher callback; token-gated
+app.use(statsRouter);   // public transparency stats — powers the /stats dashboard
 
 
 // Paid APIs (x402), with OWNER_API_KEY bypass for internal/admin calls.
@@ -52,7 +53,6 @@ app.use(requirePaidAccess(process.env.X402_PRICE_PAYOUT || "$0.02"), payoutRoute
 app.use(requirePaidAccess(process.env.X402_PRICE_PAYOUT || "$0.02"), orderRouter);
 app.use(requirePaidAccess(process.env.X402_PRICE_LIQUIDITY || "$0.005"), liquidityRouter);
 app.use(requirePaidAccess(process.env.X402_PRICE_SETTLEMENT || "$0.005"), settlementRouter);
-app.use(requirePaidAccess(process.env.X402_PRICE_SETTLEMENT || "$0.005"), statsRouter);
 
 ledger.init().then(() => {
   startExpiryWorker();

@@ -4,6 +4,8 @@
 
 The fund weights what it can verify over self-reporting. Every metric below is tagged with how a third party can check it.
 
+**Live dashboard:** headline metrics — orders, settlements, payouts, fiat volume by currency, x402 agent calls, and distinct agent payers — are published in real time at `https://clova-pay-africa.vercel.app/stats` (public, auto-refreshing, backed by the open `/v1/stats` API). Settlements link directly to block explorers.
+
 ---
 
 ## 1. Headline metrics
