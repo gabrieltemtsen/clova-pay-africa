@@ -74,10 +74,35 @@ function fmt(n: number): string {
 
 function Card({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
-    <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+    <div className="rounded-2xl glassmorphism border border-white/5 hover:border-white/10 transition-colors p-4">
       <div className="text-xs uppercase tracking-wider text-slate-500">{label}</div>
       <div className="mt-1 text-2xl font-semibold text-slate-100">{value}</div>
       {sub && <div className="mt-0.5 text-xs text-slate-500">{sub}</div>}
+    </div>
+  );
+}
+
+function CurrencyVolumeCard({ byCurrency }: { byCurrency: Record<string, number> | undefined }) {
+  const entries = byCurrency ? Object.entries(byCurrency).sort(([, a], [, b]) => b - a) : [];
+  return (
+    <div className="rounded-2xl glassmorphism border border-white/5 hover:border-white/10 transition-colors p-4">
+      <div className="text-xs uppercase tracking-wider text-slate-500">Fiat volume</div>
+      {entries.length > 0 ? (
+        <div className="mt-1 space-y-0.5">
+          {entries.slice(0, 4).map(([ccy, vol]) => (
+            <div key={ccy} className="flex items-baseline justify-between">
+              <span className="text-xs font-semibold text-slate-500">{ccy}</span>
+              <span className="text-base font-semibold text-slate-100">{fmt(vol)}</span>
+            </div>
+          ))}
+          {entries.length > 4 && (
+            <div className="text-xs text-slate-600">+{entries.length - 4} more</div>
+          )}
+        </div>
+      ) : (
+        <div className="mt-1 text-2xl font-semibold text-slate-100">—</div>
+      )}
+      <div className="mt-0.5 text-xs text-slate-500">per destination currency</div>
     </div>
   );
 }
@@ -143,13 +168,26 @@ export default function StatsPage() {
   const x = data?.x402;
 
   return (
-    <main className="min-h-screen bg-black px-4 py-10 text-slate-200 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-6xl space-y-8">
+    <main className="relative min-h-screen bg-black px-4 py-12 text-slate-200 sm:px-6 lg:px-8 overflow-hidden">
+      {/* Background glow, matching landing */}
+      <div className="absolute -top-40 left-1/2 -translate-x-1/2 w-[700px] h-[500px] bg-blue-600/15 rounded-full blur-[120px] pointer-events-none" />
+      <div className="absolute top-1/3 right-0 w-[400px] h-[400px] bg-indigo-600/10 rounded-full blur-[100px] pointer-events-none" />
+
+      <div className="relative z-10 mx-auto max-w-6xl space-y-8">
         <header className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold text-white">Clova Pay — Live Network Stats</h1>
-            <p className="mt-1 text-sm text-slate-500">
-              Public, real-time transparency dashboard. Settlements link to on-chain explorers — verify everything yourself.
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full glassmorphism border border-emerald-500/20 text-emerald-400 text-xs font-medium mb-4">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+              </span>
+              Public transparency dashboard
+            </div>
+            <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-white">
+              Live network <span className="gradient-text">stats</span>
+            </h1>
+            <p className="mt-2 text-sm text-slate-500">
+              Real-time, publicly verifiable. Settlements link to on-chain explorers — check everything yourself.
             </p>
           </div>
           <div className="text-xs text-slate-500">
@@ -168,13 +206,13 @@ export default function StatsPage() {
           <Card label="Orders" value={t ? fmt(t.orders) : "—"} />
           <Card label="Settlements" value={t ? fmt(t.settlements) : "—"} sub="on-chain verified" />
           <Card label="Payouts" value={t ? fmt(t.payouts) : "—"} sub="bank / mobile wallet" />
-          <Card label="Fiat volume" value={t ? fmt(t.volume.fiat) : "—"} sub={t ? Object.keys(t.volume.fiatByCurrency).join(" · ") || "NGN" : ""} />
+          <CurrencyVolumeCard byCurrency={t?.volume.fiatByCurrency} />
           <Card label="Agent calls (x402)" value={x ? fmt(x.totalCalls) : "—"} sub={x ? `${fmt(x.calls30d)} in last 30d` : ""} />
           <Card label="Distinct agents" value={x ? fmt(x.distinctPayers) : "—"} sub={x ? `${fmt(x.distinctPayers30d)} active 30d` : ""} />
         </section>
 
         {/* Activity chart */}
-        <section className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+        <section className="rounded-2xl glassmorphism border border-white/5 hover:border-white/10 transition-colors p-4">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-sm font-semibold text-slate-300">Activity — last 30 days</h2>
             <div className="flex items-center gap-4 text-xs text-slate-500">
@@ -188,7 +226,7 @@ export default function StatsPage() {
         <div className="grid gap-6 lg:grid-cols-2">
           {/* Volume by asset + status */}
           <section className="space-y-6">
-            <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+            <div className="rounded-2xl glassmorphism border border-white/5 hover:border-white/10 transition-colors p-4">
               <h2 className="mb-3 text-sm font-semibold text-slate-300">Crypto volume by asset</h2>
               <div className="space-y-2">
                 {t && Object.keys(t.volume.crypto).length > 0 ? (
@@ -204,7 +242,7 @@ export default function StatsPage() {
               </div>
             </div>
 
-            <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+            <div className="rounded-2xl glassmorphism border border-white/5 hover:border-white/10 transition-colors p-4">
               <h2 className="mb-3 text-sm font-semibold text-slate-300">Orders by status</h2>
               <div className="flex flex-wrap gap-2">
                 {t ? (
@@ -222,7 +260,7 @@ export default function StatsPage() {
               </div>
             </div>
 
-            <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+            <div className="rounded-2xl glassmorphism border border-white/5 hover:border-white/10 transition-colors p-4">
               <h2 className="mb-3 text-sm font-semibold text-slate-300">x402 calls by endpoint</h2>
               <div className="space-y-2">
                 {x && Object.keys(x.byEndpoint).length > 0 ? (
@@ -244,7 +282,7 @@ export default function StatsPage() {
 
           {/* Recent settlements + agent calls */}
           <section className="space-y-6">
-            <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+            <div className="rounded-2xl glassmorphism border border-white/5 hover:border-white/10 transition-colors p-4">
               <h2 className="mb-3 text-sm font-semibold text-slate-300">Recent on-chain settlements</h2>
               <div className="space-y-2">
                 {data && data.lastTxs.length > 0 ? (
@@ -273,7 +311,7 @@ export default function StatsPage() {
               </div>
             </div>
 
-            <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+            <div className="rounded-2xl glassmorphism border border-white/5 hover:border-white/10 transition-colors p-4">
               <h2 className="mb-3 text-sm font-semibold text-slate-300">Recent x402 agent calls</h2>
               <div className="space-y-2">
                 {x && x.lastEvents.length > 0 ? (
@@ -291,7 +329,7 @@ export default function StatsPage() {
               </div>
             </div>
 
-            <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+            <div className="rounded-2xl glassmorphism border border-white/5 hover:border-white/10 transition-colors p-4">
               <h2 className="mb-3 text-sm font-semibold text-slate-300">Recent orders</h2>
               <div className="space-y-2">
                 {data && data.lastOrders.length > 0 ? (

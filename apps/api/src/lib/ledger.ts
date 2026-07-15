@@ -70,6 +70,7 @@ export type OfframpOrder = {
   feeBps: number;
   feeFiat: string;
   receiveFiat: string;
+  destinationCurrency?: string; // NGN | KES | GHS | UGX | ... (legacy rows default to NGN)
   depositAddress: string;
   recipientName: string;
   recipientAccount: string;
@@ -311,6 +312,7 @@ class PostgresLedger implements Ledger {
       alter table if exists offramp_orders add column if not exists direction text default 'offramp';
       alter table if exists offramp_orders add column if not exists recipient_address text;
       alter table if exists offramp_orders add column if not exists provider_account text;
+      alter table if exists offramp_orders add column if not exists destination_currency text default 'NGN';
 
       create table if not exists x402_events (
         event_id text primary key,
@@ -378,6 +380,7 @@ class PostgresLedger implements Ledger {
       direction: r.direction || "offramp",
       recipientAddress: r.recipient_address || undefined,
       providerAccount: r.provider_account || undefined,
+      destinationCurrency: r.destination_currency || "NGN",
     };
   }
 
@@ -496,19 +499,21 @@ class PostgresLedger implements Ledger {
       `insert into offramp_orders (order_id,asset,amount_crypto,rate,fee_bps,fee_ngn,receive_ngn,deposit_address,
        recipient_name,recipient_account,recipient_bank_code,recipient_code,paycrest_order_id,
        status,payout_id,transfer_code,tx_hash,funding_tx_hash,failure_reason,expires_at,created_at,updated_at,
-       direction,recipient_address,provider_account)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25)
+       direction,recipient_address,provider_account,destination_currency)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)
        on conflict (order_id) do update set status=excluded.status,recipient_code=excluded.recipient_code,
        paycrest_order_id=excluded.paycrest_order_id,payout_id=excluded.payout_id,
        transfer_code=excluded.transfer_code,tx_hash=excluded.tx_hash,funding_tx_hash=excluded.funding_tx_hash,
        failure_reason=excluded.failure_reason,updated_at=excluded.updated_at,
-       direction=excluded.direction,recipient_address=excluded.recipient_address,provider_account=excluded.provider_account`,
+       direction=excluded.direction,recipient_address=excluded.recipient_address,provider_account=excluded.provider_account,
+       destination_currency=excluded.destination_currency`,
       [o.orderId, o.asset, o.amountCrypto, o.rate, o.feeBps, o.feeFiat, o.receiveFiat, o.depositAddress,
       o.recipientName, o.recipientAccount, o.recipientBankCode, o.recipientCode || null,
       o.paycrestOrderId || null, o.status,
       o.payoutId || null, o.transferCode || null, o.txHash || null, o.fundingTxHash || null,
       o.failureReason || null, o.expiresAt, o.createdAt, o.updatedAt,
-      o.direction || "offramp", o.recipientAddress || null, o.providerAccount || null],
+      o.direction || "offramp", o.recipientAddress || null, o.providerAccount || null,
+      o.destinationCurrency || "NGN"],
     );
   }
 

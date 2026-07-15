@@ -51,6 +51,13 @@ export const Navbar = () => {
                         <Link href="/app" className="text-sm font-medium text-gray-300 hover:text-white transition-colors">
                             App
                         </Link>
+                        <Link href="/stats" className="text-sm font-medium text-gray-300 hover:text-white transition-colors flex items-center gap-1.5">
+                            <span className="relative flex h-1.5 w-1.5">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
+                            </span>
+                            Live Stats
+                        </Link>
                         <Link href="/docs" className="text-sm font-medium text-gray-300 hover:text-white transition-colors">
                             Developers
                         </Link>
@@ -116,6 +123,13 @@ export const Navbar = () => {
                                 onClick={() => setMobileMenuOpen(false)}
                             >
                                 App
+                            </Link>
+                            <Link
+                                href="/stats"
+                                className="block px-3 py-4 text-base font-medium text-gray-300 hover:text-white hover:bg-white/5 rounded-lg transition-colors border-b border-white/5"
+                                onClick={() => setMobileMenuOpen(false)}
+                            >
+                                Live Stats
                             </Link>
                             <Link
                                 href="/docs"

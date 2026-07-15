@@ -29,7 +29,7 @@ export default function Home() {
               {
                 step: "01",
                 title: "Get a quote",
-                desc: "POST /v1/quotes with your asset and amount. Get back the NGN rate, fee breakdown, and expiry.",
+                desc: "POST /v1/quotes with your asset, amount and destination currency. Get back the local rate, fee breakdown, and expiry.",
                 color: "blue"
               },
               {
@@ -46,8 +46,8 @@ export default function Home() {
               },
               {
                 step: "04",
-                title: "NGN lands in bank",
-                desc: "Once confirmed, naira is transferred to the recipient's account. Webhook fires when settled.",
+                title: "Cash lands locally",
+                desc: "Once confirmed, local currency hits the recipient's bank account or mobile wallet. Webhook fires when settled.",
                 color: "purple"
               }
             ].map((item, idx) => (
@@ -81,7 +81,7 @@ export default function Home() {
               transition={{ duration: 0.7 }}
             >
               <h2 className="text-3xl md:text-4xl font-bold mb-4">Supported assets</h2>
-              <p className="text-gray-400 mb-8">Phase 1 covers three stablecoin rails into NGN. More corridors coming as we expand.</p>
+              <p className="text-gray-400 mb-8">Three stablecoin rails into NGN, KES, GHS and UGX. More corridors coming as we expand.</p>
 
               <div className="space-y-4">
                 {[
@@ -167,7 +167,7 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-3xl mx-auto mb-16">
             <h2 className="text-3xl md:text-5xl font-bold mb-6">Who it&apos;s for</h2>
-            <p className="text-gray-400 text-lg">If you hold crypto and need naira in a bank account, Clova handles it.</p>
+            <p className="text-gray-400 text-lg">If you hold crypto and need local African currency in a bank account or mobile wallet, Clova handles it.</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -182,14 +182,14 @@ export default function Home() {
               {
                 icon: <Wallet className="w-8 h-8 text-purple-400" />,
                 title: "DeFi protocols",
-                desc: "Pay contributors, grant recipients, or yield earners directly to Nigerian bank accounts from your on-chain treasury — no OTC desk needed.",
+                desc: "Pay contributors, grant recipients, or yield earners directly to African bank accounts from your on-chain treasury — no OTC desk needed.",
                 cta: "See order flow",
                 href: "/docs/quickstart"
               },
               {
                 icon: <Building2 className="w-8 h-8 text-emerald-400" />,
                 title: "Businesses & freelancers",
-                desc: "Get paid in stablecoins globally, convert to NGN at a transparent rate, land directly in your GTB or Zenith account. No crypto exchange required.",
+                desc: "Get paid in stablecoins globally, convert at a transparent rate, land directly in your bank or M-Pesa wallet. No crypto exchange required.",
                 cta: "Get started",
                 href: "/docs"
               }
@@ -304,7 +304,7 @@ export default function Home() {
           >
             <h2 className="text-4xl md:text-6xl font-bold mb-6 text-balance">Crypto in. African fiat out.</h2>
             <p className="text-xl text-gray-400 mb-10 max-w-2xl mx-auto">
-              Three stablecoin rails. One API. Local currency in bank accounts across Africa — Nigeria live, more corridors shipping.
+              Three stablecoin rails. One API. NGN, KES, GHS and UGX in bank accounts and mobile wallets — live now, more corridors shipping.
             </p>
             <div className="flex flex-col sm:flex-row justify-center items-center gap-4">
               <Link href="/docs/quickstart" className="h-14 px-8 rounded-full bg-white text-black font-bold flex items-center justify-center hover:scale-105 transition-transform w-full sm:w-auto">
