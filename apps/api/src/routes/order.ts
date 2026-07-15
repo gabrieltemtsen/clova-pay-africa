@@ -203,6 +203,7 @@ orderRouter.post("/v1/orders", async (req, res) => {
         feeFiat: quote.feeFiat,
         receiveFiat: quote.receiveFiat,
         destinationCurrency: currency,
+        returnAddress: returnAddress || undefined,
         depositAddress,
         recipientName: recipient.accountName,
         recipientAccount: recipient.accountNumber,
