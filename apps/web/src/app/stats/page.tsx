@@ -82,6 +82,31 @@ function Card({ label, value, sub }: { label: string; value: string; sub?: strin
   );
 }
 
+function CurrencyVolumeCard({ byCurrency }: { byCurrency: Record<string, number> | undefined }) {
+  const entries = byCurrency ? Object.entries(byCurrency).sort(([, a], [, b]) => b - a) : [];
+  return (
+    <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+      <div className="text-xs uppercase tracking-wider text-slate-500">Fiat volume</div>
+      {entries.length > 0 ? (
+        <div className="mt-1 space-y-0.5">
+          {entries.slice(0, 4).map(([ccy, vol]) => (
+            <div key={ccy} className="flex items-baseline justify-between">
+              <span className="text-xs font-semibold text-slate-500">{ccy}</span>
+              <span className="text-base font-semibold text-slate-100">{fmt(vol)}</span>
+            </div>
+          ))}
+          {entries.length > 4 && (
+            <div className="text-xs text-slate-600">+{entries.length - 4} more</div>
+          )}
+        </div>
+      ) : (
+        <div className="mt-1 text-2xl font-semibold text-slate-100">—</div>
+      )}
+      <div className="mt-0.5 text-xs text-slate-500">per destination currency</div>
+    </div>
+  );
+}
+
 function StatusBadge({ status }: { status: string }) {
   return (
     <span className={`rounded-full px-2 py-0.5 text-xs ${STATUS_COLORS[status] || "bg-slate-500/15 text-slate-400"}`}>
@@ -168,7 +193,7 @@ export default function StatsPage() {
           <Card label="Orders" value={t ? fmt(t.orders) : "—"} />
           <Card label="Settlements" value={t ? fmt(t.settlements) : "—"} sub="on-chain verified" />
           <Card label="Payouts" value={t ? fmt(t.payouts) : "—"} sub="bank / mobile wallet" />
-          <Card label="Fiat volume" value={t ? fmt(t.volume.fiat) : "—"} sub={t ? Object.keys(t.volume.fiatByCurrency).join(" · ") || "NGN" : ""} />
+          <CurrencyVolumeCard byCurrency={t?.volume.fiatByCurrency} />
           <Card label="Agent calls (x402)" value={x ? fmt(x.totalCalls) : "—"} sub={x ? `${fmt(x.calls30d)} in last 30d` : ""} />
           <Card label="Distinct agents" value={x ? fmt(x.distinctPayers) : "—"} sub={x ? `${fmt(x.distinctPayers30d)} active 30d` : ""} />
         </section>

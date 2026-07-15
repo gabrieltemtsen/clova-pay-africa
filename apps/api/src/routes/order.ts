@@ -202,6 +202,7 @@ orderRouter.post("/v1/orders", async (req, res) => {
         feeBps: quote.feeBps,
         feeFiat: quote.feeFiat,
         receiveFiat: quote.receiveFiat,
+        destinationCurrency: currency,
         depositAddress,
         recipientName: recipient.accountName,
         recipientAccount: recipient.accountNumber,
@@ -389,6 +390,7 @@ orderRouter.post("/v1/onramp/orders", async (req, res) => {
             direction: "onramp",
             recipientAddress,
             providerAccount: providerAccountStr,
+            destinationCurrency: String(sourceCurrency || "NGN").toUpperCase(),
         };
 
         await ledger.putOrder(order);

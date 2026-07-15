@@ -67,8 +67,8 @@ statsRouter.get("/v1/stats", async (_req, res) => {
       totals.volume.crypto[o.asset as Asset] = (totals.volume.crypto[o.asset as Asset] || 0) + amt;
     }
 
-    const fiat = Number((o as any).receiveFiat || 0);
-    const currency = (o as any).destinationCurrency || "NGN";
+    const fiat = Number(o.receiveFiat || 0);
+    const currency = o.destinationCurrency || "NGN";
     if (!Number.isNaN(fiat)) {
       totals.volume.fiat += fiat;
       totals.volume.fiatByCurrency[currency] = (totals.volume.fiatByCurrency[currency] || 0) + fiat;
@@ -147,7 +147,7 @@ statsRouter.get("/v1/stats", async (_req, res) => {
       orderId: o.orderId,
       asset: o.asset,
       amountCrypto: o.amountCrypto,
-      destinationCurrency: (o as any).destinationCurrency || "NGN",
+      destinationCurrency: o.destinationCurrency || "NGN",
       status: o.status,
       txHash: o.txHash || null,
       txExplorerUrl: o.txHash ? explorerTxUrl(o.asset as Asset, o.txHash) : null,
