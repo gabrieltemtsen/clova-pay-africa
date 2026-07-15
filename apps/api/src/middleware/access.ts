@@ -1,7 +1,25 @@
+import { randomUUID } from "node:crypto";
 import type { NextFunction, Request, Response } from "express";
 import { createThirdwebClient } from "thirdweb";
 import { base, celo, celoSepoliaTestnet } from "thirdweb/chains";
 import { facilitator, settlePayment } from "thirdweb/x402";
+import { ledger } from "../lib/ledger.js";
+
+/** Best-effort payer extraction from the x402 payment header (base64 JSON). */
+function extractPayer(paymentData?: string): string | undefined {
+  if (!paymentData) return undefined;
+  try {
+    const decoded = JSON.parse(Buffer.from(paymentData, "base64").toString("utf8"));
+    return (
+      decoded?.payload?.authorization?.from ||
+      decoded?.payload?.from ||
+      decoded?.from ||
+      undefined
+    );
+  } catch {
+    return undefined;
+  }
+}
 
 const ownerApiKey = process.env.OWNER_API_KEY || "";
 
@@ -77,6 +95,19 @@ export function requirePaidAccess(price: string) {
 
     const receiptHeader = result.responseHeaders["x-payment-response"] || result.responseHeaders["x-payment-receipt-id"];
     if (receiptHeader) res.setHeader("x-payment-receipt-id", String(receiptHeader));
+
+    // Record the paid agent call for the public stats dashboard (fire-and-forget).
+    ledger
+      .recordX402Event({
+        eventId: randomUUID(),
+        endpoint: req.path,
+        method: req.method,
+        payer: extractPayer(paymentData),
+        network: networkName,
+        price,
+        createdAt: Date.now(),
+      })
+      .catch((e) => console.error("[x402] failed to record event:", e?.message || e));
 
     return next();
   };

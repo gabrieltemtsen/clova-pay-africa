@@ -52,6 +52,16 @@ export type LedgerEntry = {
   createdAt: number;
 };
 
+export type X402Event = {
+  eventId: string;
+  endpoint: string;
+  method: string;
+  payer?: string;
+  network: string;
+  price: string;
+  createdAt: number;
+};
+
 export type OfframpOrder = {
   orderId: string;
   asset: Asset;
@@ -100,6 +110,9 @@ type Ledger = {
 
   addLedgerEntry(e: LedgerEntry): Promise<void>;
   listLedgerEntries(limit?: number): Promise<LedgerEntry[]>;
+
+  recordX402Event(e: X402Event): Promise<void>;
+  listX402Events(limit?: number): Promise<X402Event[]>;
 
   putOrder(o: OfframpOrder): Promise<void>;
   getOrder(orderId: string): Promise<OfframpOrder | undefined>;
@@ -161,6 +174,10 @@ class MemoryLedger implements Ledger {
 
   async addLedgerEntry(e: LedgerEntry) { this.entries.unshift(e); }
   async listLedgerEntries(limit = 200) { return this.entries.slice(0, limit); }
+
+  private x402Events: X402Event[] = [];
+  async recordX402Event(e: X402Event) { this.x402Events.unshift(e); }
+  async listX402Events(limit = 500) { return this.x402Events.slice(0, limit); }
 
   async putOrder(o: OfframpOrder) { this.orders.set(o.orderId, o); }
   async getOrder(orderId: string) { return this.orders.get(orderId); }
@@ -294,6 +311,18 @@ class PostgresLedger implements Ledger {
       alter table if exists offramp_orders add column if not exists direction text default 'offramp';
       alter table if exists offramp_orders add column if not exists recipient_address text;
       alter table if exists offramp_orders add column if not exists provider_account text;
+
+      create table if not exists x402_events (
+        event_id text primary key,
+        endpoint text not null,
+        method text not null,
+        payer text,
+        network text not null,
+        price text not null,
+        created_at bigint not null
+      );
+      create index if not exists idx_x402_created on x402_events(created_at desc);
+      create index if not exists idx_x402_payer on x402_events(payer);
     `);
   }
 
@@ -443,6 +472,23 @@ class PostgresLedger implements Ledger {
   async listLedgerEntries(limit = 200) {
     const r = await this.pool.query(`select * from ledger_entries order by created_at desc limit $1`, [limit]);
     return r.rows.map((x: any) => this.rowToEntry(x));
+  }
+
+  async recordX402Event(e: X402Event) {
+    await this.pool.query(
+      `insert into x402_events (event_id,endpoint,method,payer,network,price,created_at)
+       values ($1,$2,$3,$4,$5,$6,$7) on conflict (event_id) do nothing`,
+      [e.eventId, e.endpoint, e.method, e.payer || null, e.network, e.price, e.createdAt],
+    );
+  }
+
+  async listX402Events(limit = 500) {
+    const r = await this.pool.query(`select * from x402_events order by created_at desc limit $1`, [limit]);
+    return r.rows.map((x: any): X402Event => ({
+      eventId: x.event_id, endpoint: x.endpoint, method: x.method,
+      payer: x.payer || undefined, network: x.network, price: x.price,
+      createdAt: Number(x.created_at),
+    }));
   }
 
   async putOrder(o: OfframpOrder) {
