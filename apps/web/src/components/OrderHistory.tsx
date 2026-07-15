@@ -52,17 +52,62 @@ function money(n: string | number | undefined) {
   return x.toLocaleString(undefined, { maximumFractionDigits: 2 });
 }
 
-export function OrderHistory() {
+export function OrderHistory({ addresses = [] }: { addresses?: (string | undefined)[] }) {
   const [orders, setOrders] = useState<StoredOrder[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [serverOrders, setServerOrders] = useState<StoredOrder[]>([]);
 
-  const reload = useCallback(() => setOrders(listStoredOrders()), []);
+  const addrKey = addresses.filter(Boolean).join(",");
+
+  /* Merge: server (by wallet address, works across devices) wins over local */
+  const reload = useCallback(() => {
+    const local = listStoredOrders();
+    const merged = new Map<string, StoredOrder>();
+    for (const o of local) merged.set(o.orderId, o);
+    for (const o of serverOrders) merged.set(o.orderId, { ...merged.get(o.orderId), ...o });
+    setOrders(Array.from(merged.values()).sort((a, b) => b.createdAt - a.createdAt).slice(0, 50));
+  }, [serverOrders]);
+
+  /* Fetch this wallet's orders from the API (source of truth: the DB) */
+  const fetchServerOrders = useCallback(async () => {
+    const addrs = addrKey ? addrKey.split(",") : [];
+    if (addrs.length === 0) return;
+    try {
+      const results = await Promise.all(
+        addrs.map(async (a) => {
+          const r = await fetch(`/api/clova/my-orders?address=${encodeURIComponent(a)}`, { cache: "no-store" });
+          if (!r.ok) return [];
+          const d = await r.json();
+          return Array.isArray(d?.orders) ? d.orders : [];
+        }),
+      );
+      setServerOrders(
+        results.flat().map((o: any): StoredOrder => ({
+          orderId: o.orderId,
+          direction: o.direction === "onramp" ? "onramp" : "offramp",
+          asset: o.asset,
+          amountCrypto: o.amountCrypto,
+          destinationCurrency: o.destinationCurrency || "NGN",
+          receiveFiat: o.receiveFiat,
+          status: o.status,
+          txHash: o.txHash || undefined,
+          createdAt: o.createdAt,
+        })),
+      );
+    } catch {
+      /* API unreachable — local history still shows */
+    }
+  }, [addrKey]);
 
   /* Refresh live status of any non-final orders from the API */
   const refreshStatuses = useCallback(async () => {
-    const pending = listStoredOrders().filter((o) => !FINAL_STATUSES.has(o.status));
-    if (pending.length === 0) return;
     setRefreshing(true);
+    await fetchServerOrders();
+    const pending = listStoredOrders().filter((o) => !FINAL_STATUSES.has(o.status));
+    if (pending.length === 0) {
+      setRefreshing(false);
+      return;
+    }
     await Promise.all(
       pending.slice(0, 10).map(async (o) => {
         try {
@@ -86,20 +131,22 @@ export function OrderHistory() {
       }),
     );
     setRefreshing(false);
-    reload();
-  }, [reload]);
+  }, [fetchServerOrders]);
 
+  /* Re-merge whenever local storage or server results change */
   useEffect(() => {
     reload();
-    refreshStatuses();
     const onChange = () => reload();
     window.addEventListener("clova:orders-changed", onChange);
+    return () => window.removeEventListener("clova:orders-changed", onChange);
+  }, [reload]);
+
+  /* Poll: refetch server orders + pending statuses (stable unless wallet changes) */
+  useEffect(() => {
+    refreshStatuses();
     const t = setInterval(refreshStatuses, 20_000);
-    return () => {
-      window.removeEventListener("clova:orders-changed", onChange);
-      clearInterval(t);
-    };
-  }, [reload, refreshStatuses]);
+    return () => clearInterval(t);
+  }, [refreshStatuses]);
 
   return (
     <div className="glass-card rounded-2xl border border-white/[0.06] overflow-hidden">

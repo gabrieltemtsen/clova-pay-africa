@@ -19,6 +19,33 @@ function explorerTxUrl(asset: string, txHash: string): string {
   return "";
 }
 
+/**
+ * Public: list a wallet's own orders (offramp via returnAddress, onramp via
+ * recipientAddress). Returns only non-sensitive fields — no bank details.
+ */
+statsRouter.get("/v1/address/:address/orders", async (req, res) => {
+  const address = String(req.params.address || "").trim();
+  if (address.length < 8 || address.length > 128) {
+    return res.status(400).json({ error: "invalid_address" });
+  }
+  const orders = await ledger.listOrdersByAddress(address, 50);
+  return res.json({
+    ok: true,
+    orders: orders.map((o) => ({
+      orderId: o.orderId,
+      direction: o.direction || "offramp",
+      asset: o.asset,
+      amountCrypto: o.amountCrypto,
+      destinationCurrency: o.destinationCurrency || "NGN",
+      receiveFiat: o.receiveFiat,
+      status: o.status,
+      txHash: o.txHash || null,
+      txExplorerUrl: o.txHash ? explorerTxUrl(o.asset, o.txHash) : null,
+      createdAt: o.createdAt,
+    })),
+  });
+});
+
 function shortAddr(a?: string): string | null {
   if (!a) return null;
   return a.length > 12 ? `${a.slice(0, 6)}…${a.slice(-4)}` : a;

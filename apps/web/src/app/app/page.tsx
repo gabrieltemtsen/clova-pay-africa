@@ -1246,7 +1246,7 @@ export default function AppPage() {
 
         {/* ─── Order History (below form on mobile, right column on desktop) ─── */}
         <aside className="mt-10 lg:mt-0 lg:sticky lg:top-8 min-w-0">
-          <OrderHistory />
+          <OrderHistory addresses={[address, stxAddress || undefined]} />
         </aside>
        </div>
       </div>
