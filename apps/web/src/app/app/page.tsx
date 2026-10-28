@@ -13,11 +13,16 @@ import { OrderHistory } from "@/components/OrderHistory";
 import { saveStoredOrder } from "@/lib/orderHistory";
 import { erc20Abi, parseUnits, formatUnits } from "viem";
 import { useAccount, useConnect, useDisconnect, useSwitchChain, useWriteContract, usePublicClient, useBalance, useReconnect } from "wagmi";
-import { base, celo, arbitrum, polygon, mainnet, bsc, scroll, lisk } from "viem/chains";
+import { base, celo, arbitrum, polygon, mainnet, bsc } from "viem/chains";
 
 /* ────────────────────────────────── Constants ────────────────────────────────── */
 
 const CORRIDORS = ["NGN", "KES", "GHS", "UGX", "TZS", "MWK", "BRL", "XOF", "INR"] as const;
+
+const CORRIDOR_COUNTRY: Record<string, string> = {
+  NGN: "NG", KES: "KE", GHS: "GH", UGX: "UG", TZS: "TZ",
+  MWK: "MW", BRL: "BR", XOF: "SN", INR: "IN",
+};
 
 const CURRENCY_SYMBOLS: Record<string, string> = {
   NGN: "₦", KES: "KSh", GHS: "₵", UGX: "USh", TZS: "TSh",
@@ -31,8 +36,6 @@ const CHAIN_INFO: Record<number, { name: string; icon: string; color: string; na
   [polygon.id]:  { name: "Polygon",    icon: "🟣", color: "#8247E5", nativeSymbol: "POL" },
   [mainnet.id]:  { name: "Ethereum",   icon: "⟠",  color: "#627EEA", nativeSymbol: "ETH" },
   [bsc.id]:      { name: "BNB Chain",  icon: "🟡", color: "#F0B90B", nativeSymbol: "BNB" },
-  [scroll.id]:   { name: "Scroll",     icon: "📜", color: "#FFDBB0", nativeSymbol: "ETH" },
-  [lisk.id]:     { name: "Lisk",       icon: "🔶", color: "#0D4EA6", nativeSymbol: "ETH" },
 };
 
 const NETWORK_MAP: Record<number, string> = {
@@ -42,8 +45,6 @@ const NETWORK_MAP: Record<number, string> = {
   [polygon.id]: "polygon",
   [mainnet.id]: "ethereum",
   [bsc.id]: "bnb-smart-chain",
-  [scroll.id]: "scroll",
-  [lisk.id]: "lisk",
 };
 
 const ASSETS: Array<{
@@ -51,8 +52,10 @@ const ASSETS: Array<{
   kind: "evm" | "stacks"; decimals: number;
   tokenAddress?: `0x${string}`; chainId?: number;
 }> = [
-  { key: "cUSD_CELO", label: "cUSD", chainLabel: "Celo", kind: "evm", decimals: 18, tokenAddress: "0x765DE816845861e75A25fCA122bb6898B8B1282a", chainId: celo.id },
   { key: "USDC_BASE", label: "USDC", chainLabel: "Base", kind: "evm", decimals: 6, tokenAddress: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", chainId: base.id },
+  { key: "USDT_BASE", label: "USDT", chainLabel: "Base", kind: "evm", decimals: 6, tokenAddress: "0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2", chainId: base.id },
+  { key: "USDT_CELO", label: "USDT", chainLabel: "Celo", kind: "evm", decimals: 6, tokenAddress: "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e", chainId: celo.id },
+  { key: "USDC_CELO", label: "USDC", chainLabel: "Celo", kind: "evm", decimals: 6, tokenAddress: "0xcebA9300f2b948710d2653dD7B07f33A8B32118C", chainId: celo.id },
   { key: "USDC_ARBITRUM", label: "USDC", chainLabel: "Arbitrum One", kind: "evm", decimals: 6, tokenAddress: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831", chainId: arbitrum.id },
   { key: "USDT_ARBITRUM", label: "USDT", chainLabel: "Arbitrum One", kind: "evm", decimals: 6, tokenAddress: "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9", chainId: arbitrum.id },
   { key: "USDC_POLYGON", label: "USDC", chainLabel: "Polygon", kind: "evm", decimals: 6, tokenAddress: "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359", chainId: polygon.id },
@@ -61,9 +64,6 @@ const ASSETS: Array<{
   { key: "USDT_ETHEREUM", label: "USDT", chainLabel: "Ethereum", kind: "evm", decimals: 6, tokenAddress: "0xdAC17F958D2ee523a2206206994597C13D831ec7", chainId: mainnet.id },
   { key: "USDT_BSC", label: "USDT", chainLabel: "BNB Smart Chain", kind: "evm", decimals: 18, tokenAddress: "0x55d398326f99059fF775485246999027B3197955", chainId: bsc.id },
   { key: "USDC_BSC", label: "USDC", chainLabel: "BNB Smart Chain", kind: "evm", decimals: 18, tokenAddress: "0x8AC76a51cc950d9822D68b83fE1Ad97B32CD580d", chainId: bsc.id },
-  { key: "USDC_SCROLL", label: "USDC", chainLabel: "Scroll", kind: "evm", decimals: 6, tokenAddress: "0x06eFDBff2a14a7c8E15994D0F3738598cf459980", chainId: scroll.id },
-  { key: "USDT_SCROLL", label: "USDT", chainLabel: "Scroll", kind: "evm", decimals: 6, tokenAddress: "0xf55BEC9dbDb332568D1141DaAE05654C84b768a3", chainId: scroll.id },
-  { key: "USDT_LISK", label: "USDT", chainLabel: "Lisk", kind: "evm", decimals: 6, tokenAddress: "0x05D034367b937613502b414609acEf12D1f84d68", chainId: lisk.id },
   // { key: "USDCX_STACKS", label: "USDCx", chainLabel: "Stacks", kind: "stacks", decimals: 6 },
 ];
 
@@ -168,6 +168,14 @@ export default function AppPage() {
 
   const [recipientName, setRecipientName] = useState<string>("");
   const [recipientAccount, setRecipientAccount] = useState<string>("");
+  const [resolvingAccount, setResolvingAccount] = useState(false);
+  const [accountResolvedError, setAccountResolvedError] = useState<string | null>(null);
+
+  /* ─── Onramp KYC State (Paycrest v2 Oct 2026 requirement) ─── */
+  const [kycBirthDate, setKycBirthDate] = useState<string>("");
+  const [kycIdType, setKycIdType] = useState<"BVN" | "nationalID" | "passport">("BVN");
+  const [kycIdNumber, setKycIdNumber] = useState<string>("");
+  const [kycPhone, setKycPhone] = useState<string>("");
 
   const [quote, setQuote] = useState<{ rate: string; feeFiat: string; receiveFiat: string } | null>(null);
   const [quoteLoading, setQuoteLoading] = useState(false);
@@ -315,6 +323,47 @@ export default function AppPage() {
     })();
     return () => { mounted = false; };
   }, [destinationCurrency]);
+
+  /* ─── Auto-Verify Bank Account via Paycrest v2 /verify-account ─── */
+  useEffect(() => {
+    const acct = recipientAccount.trim();
+    const minLen = destinationCurrency === "NGN" ? 10 : 7;
+    if (!bankCode || acct.length < minLen) {
+      setResolvingAccount(false);
+      setAccountResolvedError(null);
+      return;
+    }
+
+    let mounted = true;
+    const timer = setTimeout(async () => {
+      setResolvingAccount(true);
+      setAccountResolvedError(null);
+      try {
+        const r = await fetch(`/api/clova/verify-account`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ institution: bankCode, accountIdentifier: acct }),
+        });
+        const d = await r.json().catch(() => ({}));
+        if (!mounted) return;
+        if (r.ok && d?.accountName && d.accountName !== "OK") {
+          setRecipientName(String(d.accountName));
+          setAccountResolvedError(null);
+        } else if (!r.ok && d?.error) {
+          setAccountResolvedError(String(d.error));
+        }
+      } catch {
+        // Non-fatal; user can still type recipientName manually
+      } finally {
+        if (mounted) setResolvingAccount(false);
+      }
+    }, 450);
+
+    return () => {
+      mounted = false;
+      clearTimeout(timer);
+    };
+  }, [bankCode, recipientAccount, destinationCurrency]);
 
   /* ─── Live Quote (Sell / Offramp) ─── */
   useEffect(() => {
@@ -477,12 +526,14 @@ export default function AppPage() {
 
     await ensureEvmChain(assetMeta.chainId);
 
-    const value = parseUnits(order.amountCrypto, assetMeta.decimals);
+    const amountToSend = order.providerAccount?.amountToTransfer || order.amountCrypto;
+    const depositTarget = (order.providerAccount?.receiveAddress || order.depositAddress) as `0x${string}`;
+    const value = parseUnits(String(amountToSend), assetMeta.decimals);
     const txHash = await writeContractAsync({
       address: assetMeta.tokenAddress,
       abi: erc20Abi,
       functionName: "transfer",
-      args: [order.depositAddress as `0x${string}`, value],
+      args: [depositTarget, value],
       account: address,
     });
 
@@ -538,6 +589,11 @@ export default function AppPage() {
     if (!recipientName.trim()) throw new Error("Refund account name is required");
     if (!recipientAccount.trim() || recipientAccount.trim().length < 7) throw new Error("Refund account number is too short");
     if (!bankCode) throw new Error("Pick a bank/institution");
+    if (!kycBirthDate.trim()) throw new Error("Date of birth is required for fiat on-ramp verification");
+    if (!kycIdNumber.trim()) throw new Error("ID number (BVN / National ID) is required for fiat on-ramp verification");
+    if (destinationCurrency === "KES" && !kycPhone.trim()) {
+      throw new Error("Phone number (+254...) is required for KES on-ramp");
+    }
 
     const payload = {
       destinationAsset: asset,
@@ -548,6 +604,14 @@ export default function AppPage() {
         bankCode,
         accountNumber: recipientAccount.trim(),
         accountName: recipientName.trim(),
+      },
+      kyc: {
+        fullName: recipientName.trim(),
+        birthDate: kycBirthDate.trim(),
+        idType: kycIdType,
+        idNumber: kycIdNumber.trim(),
+        issuerCountry: CORRIDOR_COUNTRY[destinationCurrency] || "NG",
+        phoneE164: kycPhone.trim() || undefined,
       },
       recipientAddress: address || stxAddress || "",
     };
@@ -1131,21 +1195,11 @@ export default function AppPage() {
 
                 {/* ═══ Recipient Details ═══ */}
                 <CollapsibleCard
-                  title={side === "sell" ? "Recipient Details" : "Refund Account"}
-                  subtitle={recipientName ? `${recipientName} • ${institutions.find(i => i.code === bankCode)?.name || ""}` : (side === "sell" ? "Bank account for payout" : "For failed transaction refunds")}
+                  title={side === "sell" ? "Recipient Details" : "Refund & Verification Details"}
+                  subtitle={recipientName ? `${recipientName} • ${institutions.find(i => i.code === bankCode)?.name || ""}` : (side === "sell" ? "Bank account for payout" : "Refund bank & KYC required for fiat deposit")}
                   delay={0.15}
                 >
                   <div className="grid gap-4 pt-1">
-                    <div>
-                      <FieldLabel>Full name</FieldLabel>
-                      <input
-                        value={recipientName}
-                        onChange={(e) => setRecipientName(e.target.value)}
-                        className="w-full rounded-xl glass-input px-3.5 py-3 text-sm font-medium text-white focus:outline-none placeholder:text-gray-600"
-                        placeholder="Jane Doe"
-                      />
-                    </div>
-
                     <div>
                       <FieldLabel>Bank / Institution</FieldLabel>
                       <div className="relative">
@@ -1165,14 +1219,88 @@ export default function AppPage() {
                     </div>
 
                     <div>
-                      <FieldLabel>Account number</FieldLabel>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <div className="text-[10px] font-bold tracking-wider text-gray-500 uppercase">Account number</div>
+                        {resolvingAccount && (
+                          <span className="text-[10px] text-blue-400 flex items-center gap-1">
+                            <Loader2 className="w-2.5 h-2.5 animate-spin" /> Verifying account…
+                          </span>
+                        )}
+                      </div>
                       <input
                         value={recipientAccount}
                         onChange={(e) => setRecipientAccount(e.target.value)}
                         className="w-full rounded-xl glass-input px-3.5 py-3 text-sm font-medium text-white focus:outline-none placeholder:text-gray-600"
                         placeholder="0123456789"
                       />
+                      {accountResolvedError && (
+                        <p className="mt-1 text-[10px] text-amber-400">{accountResolvedError}</p>
+                      )}
                     </div>
+
+                    <div>
+                      <FieldLabel>Full name</FieldLabel>
+                      <input
+                        value={recipientName}
+                        onChange={(e) => setRecipientName(e.target.value)}
+                        className="w-full rounded-xl glass-input px-3.5 py-3 text-sm font-medium text-white focus:outline-none placeholder:text-gray-600"
+                        placeholder="Jane Doe (auto-filled when verified)"
+                      />
+                    </div>
+
+                    {side === "buy" && (
+                      <div className="grid gap-4 pt-3 border-t border-white/[0.06]">
+                        <div className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">
+                          Sender Verification (Required by Paycrest v2)
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <FieldLabel>Date of Birth</FieldLabel>
+                            <input
+                              type="date"
+                              value={kycBirthDate}
+                              onChange={(e) => setKycBirthDate(e.target.value)}
+                              className="w-full rounded-xl glass-input px-3.5 py-2.5 text-sm font-medium text-white focus:outline-none"
+                            />
+                          </div>
+                          <div>
+                            <FieldLabel>ID Type</FieldLabel>
+                            <div className="relative">
+                              <select
+                                value={kycIdType}
+                                onChange={(e) => setKycIdType(e.target.value as any)}
+                                className="w-full appearance-none rounded-xl glass-input px-3.5 py-2.5 text-sm font-medium text-white focus:outline-none pr-8"
+                              >
+                                <option value="BVN" className="bg-[#0c1220]">BVN (11 digits)</option>
+                                <option value="nationalID" className="bg-[#0c1220]">NIN / National ID</option>
+                                <option value="passport" className="bg-[#0c1220]">Passport</option>
+                              </select>
+                              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500 pointer-events-none" />
+                            </div>
+                          </div>
+                        </div>
+                        <div>
+                          <FieldLabel>{kycIdType === "BVN" ? "BVN Number" : kycIdType === "nationalID" ? "National ID / NIN Number" : "Passport Number"}</FieldLabel>
+                          <input
+                            value={kycIdNumber}
+                            onChange={(e) => setKycIdNumber(e.target.value)}
+                            className="w-full rounded-xl glass-input px-3.5 py-2.5 text-sm font-medium text-white focus:outline-none placeholder:text-gray-600"
+                            placeholder={kycIdType === "BVN" || destinationCurrency === "NGN" ? "11-digit BVN or NIN" : "Document ID number"}
+                          />
+                        </div>
+                        {destinationCurrency === "KES" && (
+                          <div>
+                            <FieldLabel>Phone Number (E.164)</FieldLabel>
+                            <input
+                              value={kycPhone}
+                              onChange={(e) => setKycPhone(e.target.value)}
+                              className="w-full rounded-xl glass-input px-3.5 py-2.5 text-sm font-medium text-white focus:outline-none placeholder:text-gray-600"
+                              placeholder="+254712345678"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </CollapsibleCard>
 

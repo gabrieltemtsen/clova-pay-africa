@@ -1,6 +1,9 @@
 export type AssetKey =
-  | "cUSD_CELO"
   | "USDC_BASE"
+  | "USDT_BASE"
+  | "USDC_CELO"
+  | "USDT_CELO"
+  | "cUSD_CELO"
   | "USDC_ARBITRUM"
   | "USDT_ARBITRUM"
   | "USDC_POLYGON"
@@ -9,14 +12,12 @@ export type AssetKey =
   | "USDT_ETHEREUM"
   | "USDT_BSC"
   | "USDC_BSC"
-  | "USDC_SCROLL"
-  | "USDT_SCROLL"
-  | "USDT_LISK"
   | "USDCX_STACKS";
 
 export type Institution = {
   name: string;
   code: string;
+  type?: string;
 };
 
 export type Order = {
@@ -33,6 +34,7 @@ export type Order = {
   recipientAccount: string;
   recipientBankCode: string;
   paycrestOrderId?: string;
+  paymentReference?: string | null;
   status: string;
   expiresAt: number;
   createdAt: number;
@@ -40,13 +42,17 @@ export type Order = {
   txHash?: string;
   direction?: "onramp" | "offramp";
   recipientAddress?: string;
+  returnAddress?: string;
   providerAccount?: {
-    institution: string;
-    accountIdentifier: string;
-    accountName: string;
+    institution?: string;
+    accountIdentifier?: string;
+    accountName?: string;
+    receiveAddress?: string;
+    network?: string;
     amountToTransfer: string;
     currency: string;
     validUntil?: string;
+    memo?: string;
   };
 };
 
@@ -58,6 +64,8 @@ export type CreateOrderInput = {
     accountName: string;
     accountNumber: string;
     bankCode: string;
+    memo?: string;
+    metadata?: Record<string, unknown>;
   };
   returnAddress?: string;
 };

@@ -37,10 +37,10 @@ export const config = {
   settlementVerifyRetryDelayMs: Number(process.env.SETTLEMENT_VERIFY_RETRY_DELAY_MS || 15000),
   settlementVerifyMaxAttempts: Number(process.env.SETTLEMENT_VERIFY_MAX_ATTEMPTS || 3),
 
-  // --- Paycrest (primary payout rail) ---
+  // --- Paycrest (primary payout rail — v2 API) ---
   paycrestMode: (process.env.PAYCREST_MODE || "mock").toLowerCase(),
   paycrestApiKey: process.env.PAYCREST_API_KEY || "",
-  paycrestBaseUrl: process.env.PAYCREST_BASE_URL || "https://api.paycrest.io/v1",
+  paycrestBaseUrl: process.env.PAYCREST_BASE_URL || "https://api.paycrest.io/v2",
   paycrestWebhookSecret: process.env.PAYCREST_WEBHOOK_SECRET || "",
   // URL PayCrest will POST order status events to. Set to your ngrok/public URL in .env
   paycrestWebhookUrl: process.env.PAYCREST_WEBHOOK_URL || "",

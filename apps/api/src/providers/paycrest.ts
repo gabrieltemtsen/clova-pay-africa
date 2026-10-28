@@ -25,6 +25,9 @@ export type PaycrestOrderResponse = {
     reference: string;
     depositAddress: string;
     amountCrypto: string;
+    amountToTransfer?: string;
+    validUntil?: string;
+    providerAccount?: any;
     token: string;
     network: string;
     rate: string;
@@ -104,30 +107,31 @@ async function paycrestV2Request(
 }
 
 export class PaycrestProvider {
-    async getExchangeRate(token: string, amount: string, currency: string, network?: string): Promise<string> {
+    async getExchangeRate(token: string, amount: string, currency: string, network = "base"): Promise<string> {
         if (isMock()) {
             return "1450.50";
         }
         try {
-            const query = network ? `?network=${network}` : "";
-            const data = await paycrestRequest("GET", `/rates/${token}/${amount}/${currency}${query}`);
-            return String(data);
+            const data = await paycrestV2Request("GET", `/rates/${network}/${token}/${amount}/${currency}`);
+            const sellRate = data?.sell?.rate ?? data?.buy?.rate ?? data;
+            return String(sellRate);
         } catch (e: any) {
             console.error("[paycrest] getExchangeRate error:", e?.response?.data || e.message);
             throw new Error("paycrest_rate_fetch_failed");
         }
     }
 
-    /** Fetch the live rate from PayCrest for a specific token+network combo. Returns null in mock mode. */
+    /** Fetch the live rate from PayCrest v2 for a specific token+network combo. Returns null in mock mode. */
     async getLiveRate(token: string, amount: string, currency: string, network: string): Promise<string | null> {
         if (isMock()) return null;
         try {
-            const data = await paycrestRequest("GET", `/rates/${token}/${amount}/${currency}?network=${network}`);
-            const rate = String(data);
-            console.log(`[paycrest] live rate for ${token}/${network}: ${rate}`);
-            return rate;
+            const data = await paycrestV2Request("GET", `/rates/${network}/${token}/${amount}/${currency}`);
+            const rate = data?.sell?.rate;
+            if (!rate) return null;
+            console.log(`[paycrest-v2] live sell rate for ${token}/${network}: ${rate}`);
+            return String(rate);
         } catch (e: any) {
-            console.error("[paycrest] getLiveRate error:", e?.response?.data || e.message);
+            console.error("[paycrest-v2] getLiveRate error:", e?.response?.data || e.message);
             return null;
         }
     }
@@ -152,7 +156,7 @@ export class PaycrestProvider {
         // Always fetch live from Paycrest — institution list is public, no auth required.
         // In mock mode we still call the live API so institution codes are always accurate.
         try {
-            const data = await paycrestRequest("GET", `/institutions/${currency}`);
+            const data = await paycrestV2Request("GET", `/institutions/${currency}`);
             const rows = Array.isArray(data) ? data : [];
             const mapped = rows.map((r: any) => ({
                 name: String(r?.name || r?.institution || ""),
@@ -257,30 +261,57 @@ export class PaycrestProvider {
             };
         }
         try {
-            const body: Record<string, unknown> = {
-                amount: Number(input.amountCrypto),  // PayCrest expects `amount` as a number
-                token: input.token,
-                network: input.network,
-                rate: input.rate,
-                recipient: input.recipient,
-                reference: input.reference,
-                returnAddress: input.returnAddress,
-            };
-            if (input.webhookUrl) body.webhookUrl = input.webhookUrl;
+            // Paycrest v2 senderFeePercent is 2% on our sender profile; adjust net amount so amountToTransfer == input.amountCrypto
+            const userAmountNum = Number(input.amountCrypto);
+            const netOrderAmount = Number.isFinite(userAmountNum) && userAmountNum > 0
+                ? Number((userAmountNum / 1.02).toFixed(4))
+                : userAmountNum;
 
-            console.log("[paycrest] Creating order with payload:", JSON.stringify(body, null, 2));
-            const data = await paycrestRequest("POST", "/sender/orders", body);
+            const body: Record<string, unknown> = {
+                amount: netOrderAmount,
+                amountIn: "crypto",
+                rate: Number(input.rate),
+                source: {
+                    type: "crypto",
+                    currency: input.token,
+                    network: input.network,
+                    refundAddress: input.returnAddress,
+                },
+                destination: {
+                    type: "fiat",
+                    currency: input.recipient.currency,
+                    recipient: {
+                        institution: input.recipient.institution,
+                        accountIdentifier: input.recipient.accountIdentifier,
+                        accountName: input.recipient.accountName,
+                        memo: input.recipient.memo || `Clova Pay ${input.reference}`,
+                    },
+                },
+                reference: input.reference,
+            };
+
+            console.log("[paycrest-v2] Creating offramp order with payload:", JSON.stringify(body, null, 2));
+            const data = await paycrestV2Request("POST", "/sender/orders", body);
+            const receiveAddr = String(
+                data?.providerAccount?.receiveAddress ||
+                data?.depositAddress ||
+                data?.receiveAddress ||
+                ""
+            );
             return {
                 id: String(data?.id || data?.orderId || ""),
-                status: String(data?.status || "pending"),
+                status: String(data?.status || "initiated"),
                 reference: String(data?.reference || input.reference),
-                depositAddress: String(data?.depositAddress || data?.receiveAddress || ""),
-                amountCrypto: String(data?.amount || input.amountCrypto),
-                token: String(data?.token || input.token),
-                network: String(data?.network || input.network),
+                depositAddress: receiveAddr,
+                amountCrypto: String(data?.providerAccount?.amountToTransfer || input.amountCrypto),
+                amountToTransfer: data?.providerAccount?.amountToTransfer ? String(data.providerAccount.amountToTransfer) : undefined,
+                validUntil: data?.providerAccount?.validUntil,
+                providerAccount: data?.providerAccount,
+                token: String(data?.source?.currency || input.token),
+                network: String(data?.providerAccount?.network || data?.source?.network || input.network),
                 rate: String(data?.rate || input.rate),
-                recipient: data?.recipient || input.recipient,
-                returnAddress: String(data?.returnAddress || input.returnAddress),
+                recipient: data?.destination?.recipient || input.recipient,
+                returnAddress: String(data?.source?.refundAddress || input.returnAddress),
                 createdAt: data?.createdAt,
             };
         } catch (e: any) {
@@ -327,11 +358,26 @@ export class PaycrestProvider {
             return null;
         }
         try {
-            const data = await paycrestRequest("GET", `/sender/orders/${paycrestOrderId}`);
+            const data = await paycrestV2Request("GET", `/sender/orders/${paycrestOrderId}`);
             return data as PaycrestOrderResponse;
         } catch (e: any) {
-            console.error("[paycrest] getOrder error:", e.message);
+            console.error("[paycrest-v2] getOrder error:", e.message);
             return null;
+        }
+    }
+
+    async verifyAccount(institution: string, accountIdentifier: string, metadata?: Record<string, unknown>): Promise<{ ok: boolean; accountName?: string; error?: string }> {
+        if (isMock()) {
+            return { ok: true, accountName: "Sandbox Verified User" };
+        }
+        try {
+            const body: Record<string, unknown> = { institution, accountIdentifier };
+            if (metadata) body.metadata = metadata;
+            const data = await paycrestV2Request("POST", "/verify-account", body);
+            const accountName = typeof data === "string" ? data : String(data?.accountName || data?.name || "OK");
+            return { ok: true, accountName };
+        } catch (e: any) {
+            return { ok: false, error: e.message };
         }
     }
 

@@ -4,15 +4,14 @@ import { WagmiProvider, createConfig, http } from "wagmi";
 import { walletConnect, injected, coinbaseWallet } from "wagmi/connectors";
 import { farcasterMiniApp } from "@farcaster/miniapp-wagmi-connector";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { base, celo, arbitrum, polygon, mainnet, bsc, scroll, lisk } from "viem/chains";
-import { useEffect } from "react";
+import { base, celo, arbitrum, polygon, mainnet, bsc } from "viem/chains";
 
 const queryClient = new QueryClient();
 
 const projectId = process.env.NEXT_PUBLIC_WC_PROJECT_ID;
 
 const config = createConfig({
-  chains: [base, celo, arbitrum, polygon, mainnet, bsc, scroll, lisk],
+  chains: [base, celo, arbitrum, polygon, mainnet, bsc],
   transports: {
     [base.id]: http(),
     [celo.id]: http(),
@@ -20,8 +19,6 @@ const config = createConfig({
     [polygon.id]: http(),
     [mainnet.id]: http(),
     [bsc.id]: http(),
-    [scroll.id]: http(),
-    [lisk.id]: http(),
   },
   connectors: [
     farcasterMiniApp(),

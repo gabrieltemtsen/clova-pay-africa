@@ -9,10 +9,13 @@ import { PaycrestProvider } from "../providers/paycrest.js";
 export const orderRouter = Router();
 const paycrest = new PaycrestProvider();
 
-// Map our asset keys to Paycrest token/network pairs
+// Map our asset keys to Paycrest v2 token/network pairs
 const ASSET_TO_PAYCREST: Record<string, { token: string; network: string }> = {
-    cUSD_CELO: { token: "CUSD", network: "celo" },
+    cUSD_CELO: { token: "USDT", network: "celo" },
+    USDC_CELO: { token: "USDC", network: "celo" },
+    USDT_CELO: { token: "USDT", network: "celo" },
     USDC_BASE: { token: "USDC", network: "base" },
+    USDT_BASE: { token: "USDT", network: "base" },
     USDC_ARBITRUM: { token: "USDC", network: "arbitrum-one" },
     USDT_ARBITRUM: { token: "USDT", network: "arbitrum-one" },
     USDC_POLYGON: { token: "USDC", network: "polygon" },
@@ -21,10 +24,6 @@ const ASSET_TO_PAYCREST: Record<string, { token: string; network: string }> = {
     USDT_ETHEREUM: { token: "USDT", network: "ethereum" },
     USDT_BSC: { token: "USDT", network: "bnb-smart-chain" },
     USDC_BSC: { token: "USDC", network: "bnb-smart-chain" },
-    USDC_SCROLL: { token: "USDC", network: "scroll" },
-    USDT_SCROLL: { token: "USDT", network: "scroll" },
-    USDT_LISK: { token: "USDT", network: "lisk" },
-    USDC_LISK: { token: "USDC", network: "lisk" },
 };
 
 async function reconcileOrderStatus(orderId: string) {
@@ -47,7 +46,10 @@ async function reconcileOrderStatus(orderId: string) {
 const orderSchema = z.object({
     asset: z.enum([
         "cUSD_CELO",
+        "USDC_CELO",
+        "USDT_CELO",
         "USDC_BASE",
+        "USDT_BASE",
         "USDC_ARBITRUM",
         "USDT_ARBITRUM",
         "USDC_POLYGON",
@@ -77,14 +79,22 @@ const resolveRecipientSchema = z.object({
     bankCode: z.string().min(3),
 });
 
-// ----- POST /v1/recipients/resolve — verify account details ------
+// ----- POST /v1/recipients/resolve — verify account details via Paycrest v2 ------
 orderRouter.post("/v1/recipients/resolve", async (req, res) => {
     const parsed = resolveRecipientSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
     try {
+        const result = await paycrest.verifyAccount(parsed.data.bankCode, parsed.data.accountNumber);
+        if (!result.ok) {
+            return res.status(422).json({
+                error: "recipient_verification_failed",
+                detail: result.error || "Unable to verify account",
+            });
+        }
         return res.json({
-            accountName: "Resolved via PayCrest",
+            ok: true,
+            accountName: result.accountName || "Verified Account",
             accountNumber: parsed.data.accountNumber,
             bankCode: parsed.data.bankCode,
             verified: true,
@@ -337,7 +347,7 @@ orderRouter.post("/v1/onramp/quote", async (req, res) => {
 
 // ----- POST /v1/onramp/orders  —  create buy order ------
 orderRouter.post("/v1/onramp/orders", async (req, res) => {
-    const { asset, amount, amountIn, sourceCurrency, destinationAsset, refundAccount, recipientAddress } = req.body;
+    const { amount, amountIn, sourceCurrency, destinationAsset, refundAccount, recipientAddress, kyc } = req.body;
     if (!amount || !sourceCurrency || !destinationAsset || !refundAccount || !recipientAddress) {
         return res.status(400).json({ error: "missing_fields" });
     }
@@ -347,18 +357,39 @@ orderRouter.post("/v1/onramp/orders", async (req, res) => {
     if (!paycrestAsset) return res.status(400).json({ error: "unsupported_destination_asset" });
 
     try {
-        const pcOrder = await paycrest.createOnrampOrder({
-            amount: String(amount),
-            amountIn: amountIn || "fiat",
-            source: {
-                type: "fiat",
-                currency: sourceCurrency,
-                refundAccount: {
-                    institution: refundAccount.bankCode,
-                    accountIdentifier: refundAccount.accountNumber,
-                    accountName: refundAccount.accountName,
-                }
+        const rateData = await paycrest.getLiveRateV2(paycrestAsset.network, paycrestAsset.token, "1", sourceCurrency);
+        const buyRate = Number(rateData?.buy?.rate || 1500);
+
+        const sourcePayload: Record<string, unknown> = {
+            type: "fiat",
+            currency: sourceCurrency,
+            refundAccount: {
+                institution: refundAccount.bankCode,
+                accountIdentifier: refundAccount.accountNumber,
+                accountName: refundAccount.accountName,
             },
+        };
+        if (kyc && kyc.idNumber && kyc.birthDate) {
+            sourcePayload.kyc = {
+                entityType: "person",
+                personDetails: {
+                    fullName: kyc.fullName || refundAccount.accountName,
+                    birthDate: kyc.birthDate,
+                    idDocument: {
+                        type: kyc.idType || "BVN",
+                        number: kyc.idNumber,
+                        issuerCountry: kyc.issuerCountry || "NG",
+                    },
+                    ...(kyc.phoneE164 ? { contact: { phoneE164: kyc.phoneE164 } } : {}),
+                },
+            };
+        }
+
+        const pcOrder = await paycrest.createOnrampOrder({
+            amount: Number(amount),
+            amountIn: amountIn || "fiat",
+            rate: buyRate,
+            source: sourcePayload,
             destination: {
                 type: "crypto",
                 currency: paycrestAsset.token,

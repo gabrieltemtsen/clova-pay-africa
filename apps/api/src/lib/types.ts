@@ -1,6 +1,9 @@
 export type Asset =
   | "cUSD_CELO"
+  | "USDC_CELO"
+  | "USDT_CELO"
   | "USDC_BASE"
+  | "USDT_BASE"
   | "USDC_ARBITRUM"
   | "USDT_ARBITRUM"
   | "USDC_POLYGON"

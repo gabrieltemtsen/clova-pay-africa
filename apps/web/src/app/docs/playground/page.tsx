@@ -4,7 +4,7 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { Play, Loader2, ChevronDown } from "lucide-react";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 
 const BANKS = [
     { name: "Access Bank", code: "ABNGNGLA" },
@@ -163,8 +163,12 @@ export default function PlaygroundPage() {
                                 className="w-full appearance-none bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500/50"
                             >
                                 <option value="USDC_BASE">USDC on Base</option>
+                                <option value="USDT_BASE">USDT on Base</option>
+                                <option value="USDT_CELO">USDT on Celo</option>
+                                <option value="USDC_CELO">USDC on Celo</option>
+                                <option value="USDC_ARBITRUM">USDC on Arbitrum</option>
+                                <option value="USDT_POLYGON">USDT on Polygon</option>
                                 <option value="USDCX_STACKS">USDCx on Stacks</option>
-                                <option value="cUSD_CELO">cUSD on Celo</option>
                             </select>
                             <ChevronDown className="absolute right-3 top-3.5 w-4 h-4 text-gray-500 pointer-events-none" />
                         </div>
@@ -202,8 +206,12 @@ export default function PlaygroundPage() {
                                 className="w-full appearance-none bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500/50"
                             >
                                 <option value="USDC_BASE">USDC on Base</option>
+                                <option value="USDT_BASE">USDT on Base</option>
+                                <option value="USDT_CELO">USDT on Celo</option>
+                                <option value="USDC_CELO">USDC on Celo</option>
+                                <option value="USDC_ARBITRUM">USDC on Arbitrum</option>
+                                <option value="USDT_POLYGON">USDT on Polygon</option>
                                 <option value="USDCX_STACKS">USDCx on Stacks</option>
-                                <option value="cUSD_CELO">cUSD on Celo</option>
                             </select>
                             <ChevronDown className="absolute right-3 top-3.5 w-4 h-4 text-gray-500 pointer-events-none" />
                         </div>
