@@ -107,6 +107,11 @@ async function loadStacks() {
 function formatErrorMessage(msg: string): string {
   if (!msg) return "An unexpected error occurred. Please try again.";
 
+  // User rejected in wallet
+  if (msg.includes("User rejected") || msg.includes("User denied") || msg.includes("rejected the request")) {
+    return "Transaction was cancelled in your wallet.";
+  }
+
   // Account / bank verification failure
   if (msg.includes("Account validation failed") || msg.includes("failed to verify account")) {
     return "Bank account verification failed. Please check that the account number and selected bank are correct.";
@@ -173,9 +178,17 @@ export default function AppPage() {
 
   /* ─── Onramp KYC State (Paycrest v2 Oct 2026 requirement) ─── */
   const [kycBirthDate, setKycBirthDate] = useState<string>("");
-  const [kycIdType, setKycIdType] = useState<"BVN" | "nationalID" | "passport">("BVN");
+  const [kycIdType, setKycIdType] = useState<"BVN" | "nationalID" | "passport" | "driverLicense">("BVN");
   const [kycIdNumber, setKycIdNumber] = useState<string>("");
   const [kycPhone, setKycPhone] = useState<string>("");
+
+  useEffect(() => {
+    if (destinationCurrency === "NGN" && kycIdType !== "BVN" && kycIdType !== "nationalID") {
+      setKycIdType("BVN");
+    } else if (destinationCurrency !== "NGN" && kycIdType === "BVN") {
+      setKycIdType("nationalID");
+    }
+  }, [destinationCurrency, kycIdType]);
 
   const [quote, setQuote] = useState<{ rate: string; feeFiat: string; receiveFiat: string } | null>(null);
   const [quoteLoading, setQuoteLoading] = useState(false);
@@ -208,7 +221,7 @@ export default function AppPage() {
   const { disconnectAsync } = useDisconnect();
   const { switchChainAsync } = useSwitchChain();
   const { writeContractAsync } = useWriteContract();
-  const publicClient = usePublicClient();
+  const publicClient = usePublicClient({ chainId: assetMeta.chainId });
 
   /* ─── Native Gas Balance ─── */
   const { data: nativeBalance } = useBalance({
@@ -475,13 +488,16 @@ export default function AppPage() {
   }
 
   async function ensureEvmChain(targetChainId: number) {
-    if (!chainId) return;
     if (chainId === targetChainId) return;
-    await switchChainAsync({ chainId: targetChainId });
+    try {
+      await switchChainAsync({ chainId: targetChainId });
+    } catch (err: any) {
+      console.warn("[Wallet] switchChainAsync warning:", err?.message || err);
+    }
   }
 
   /* ─── Order Creation ─── */
-  async function createOrder(): Promise<Order> {
+  async function createOrder(overrideAddress?: string): Promise<Order> {
     if (!recipientName.trim()) throw new Error("Recipient name is required");
     if (!recipientAccount.trim() || recipientAccount.trim().length < 7) throw new Error("Account number is too short");
     if (!bankCode) throw new Error("Pick a bank/institution");
@@ -495,7 +511,7 @@ export default function AppPage() {
         accountNumber: recipientAccount.trim(),
         bankCode,
       },
-      returnAddress: address || undefined,
+      returnAddress: overrideAddress || address || undefined,
     };
 
     const r = await fetch(`/api/clova/orders`, {
@@ -520,9 +536,10 @@ export default function AppPage() {
     return d as Order;
   }
 
-  async function sendDepositEvm(order: Order): Promise<`0x${string}`> {
+  async function sendDepositEvm(order: Order, overrideAddress?: `0x${string}`): Promise<`0x${string}`> {
     if (!assetMeta.tokenAddress || !assetMeta.chainId) throw new Error("Unsupported EVM asset config");
-    if (!address) throw new Error("Connect a wallet first");
+    const activeAddress = overrideAddress || address;
+    if (!activeAddress) throw new Error("Connect a wallet first");
 
     await ensureEvmChain(assetMeta.chainId);
 
@@ -530,11 +547,12 @@ export default function AppPage() {
     const depositTarget = (order.providerAccount?.receiveAddress || order.depositAddress) as `0x${string}`;
     const value = parseUnits(String(amountToSend), assetMeta.decimals);
     const txHash = await writeContractAsync({
+      chainId: assetMeta.chainId,
       address: assetMeta.tokenAddress,
       abi: erc20Abi,
       functionName: "transfer",
       args: [depositTarget, value],
-      account: address,
+      account: activeAddress,
     });
 
     return txHash;
@@ -585,12 +603,15 @@ export default function AppPage() {
   }, [flow]);
 
   /* ─── Onramp Order Creation ─── */
-  async function createOnrampOrder(): Promise<any> {
+  async function createOnrampOrder(overrideAddress?: string): Promise<any> {
     if (!recipientName.trim()) throw new Error("Refund account name is required");
     if (!recipientAccount.trim() || recipientAccount.trim().length < 7) throw new Error("Refund account number is too short");
     if (!bankCode) throw new Error("Pick a bank/institution");
     if (!kycBirthDate.trim()) throw new Error("Date of birth is required for fiat on-ramp verification");
-    if (!kycIdNumber.trim()) throw new Error("ID number (BVN / National ID) is required for fiat on-ramp verification");
+    if (!kycIdNumber.trim()) throw new Error("ID number (BVN / NIN) is required for fiat on-ramp verification");
+    if (destinationCurrency === "NGN" && !/^\d{11}$/.test(kycIdNumber.trim())) {
+      throw new Error(`${kycIdType === "BVN" ? "BVN" : "NIN"} must be exactly 11 digits`);
+    }
     if (destinationCurrency === "KES" && !kycPhone.trim()) {
       throw new Error("Phone number (+254...) is required for KES on-ramp");
     }
@@ -613,7 +634,7 @@ export default function AppPage() {
         issuerCountry: CORRIDOR_COUNTRY[destinationCurrency] || "NG",
         phoneE164: kycPhone.trim() || undefined,
       },
-      recipientAddress: address || stxAddress || "",
+      recipientAddress: overrideAddress || address || stxAddress || "",
     };
 
     if (!payload.recipientAddress) {
@@ -668,7 +689,7 @@ export default function AppPage() {
       }
 
       setFlow({ kind: "creating_order" });
-      const order = await createOnrampOrder();
+      const order = await createOnrampOrder(currentAddress || currentStxAddress);
       setFlow({ kind: "deposit_sent", order });
     } catch (e: any) {
       setFlow({ kind: "error", message: e?.message || String(e) });
@@ -728,8 +749,8 @@ export default function AppPage() {
               throw new Error(`Insufficient ${assetMeta.label} balance. You have ${moneyPrecise(available, 4)} but need ${amountCrypto}.`);
             }
           } catch (err: any) {
-            if (err?.message?.includes("Insufficient") || err?.message?.includes("balance")) throw err;
-            console.warn("Could not verify balance:", err);
+            if (err?.message?.startsWith("Insufficient")) throw err;
+            console.warn("Could not verify balance via RPC, proceeding:", err);
           }
         }
 
@@ -753,11 +774,11 @@ export default function AppPage() {
       }
 
       setFlow({ kind: "creating_order" });
-      const order = await createOrder();
+      const order = await createOrder(currentAddress);
 
       if (assetMeta.kind === "evm") {
         setFlow({ kind: "awaiting_wallet", order });
-        const txHash = await sendDepositEvm(order);
+        const txHash = await sendDepositEvm(order, currentAddress as `0x${string}`);
         setFlow({ kind: "deposit_sent", order, txHash });
         setFlow({ kind: "confirming", order, txHash });
         await confirmDeposit(order, txHash);
@@ -1271,9 +1292,18 @@ export default function AppPage() {
                                 onChange={(e) => setKycIdType(e.target.value as any)}
                                 className="w-full appearance-none rounded-xl glass-input px-3.5 py-2.5 text-sm font-medium text-white focus:outline-none pr-8"
                               >
-                                <option value="BVN" className="bg-[#0c1220]">BVN (11 digits)</option>
-                                <option value="nationalID" className="bg-[#0c1220]">NIN / National ID</option>
-                                <option value="passport" className="bg-[#0c1220]">Passport</option>
+                                {destinationCurrency === "NGN" ? (
+                                  <>
+                                    <option value="BVN" className="bg-[#0c1220]">BVN (11 digits)</option>
+                                    <option value="nationalID" className="bg-[#0c1220]">NIN (11 digits)</option>
+                                  </>
+                                ) : (
+                                  <>
+                                    <option value="nationalID" className="bg-[#0c1220]">National ID</option>
+                                    <option value="passport" className="bg-[#0c1220]">Passport</option>
+                                    <option value="driverLicense" className="bg-[#0c1220]">Driver&apos;s License</option>
+                                  </>
+                                )}
                               </select>
                               <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500 pointer-events-none" />
                             </div>

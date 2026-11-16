@@ -813,6 +813,12 @@ export async function createOnrampOrder(input: any) {
     kyc?.personDetails?.idDocument?.number || kyc?.idNumber || "",
   ).trim();
 
+  if (!docNumber && !kyc?.entityType) {
+    throw new Error(
+      "Sender verification (Date of Birth and BVN/NIN/ID Number) is required by Paycrest v2 for Buy Crypto orders.",
+    );
+  }
+
   const phoneE164 = String(
     kyc?.personDetails?.contact?.phoneE164 || kyc?.phoneE164 || "",
   ).trim();

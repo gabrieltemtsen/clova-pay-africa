@@ -1,6 +1,6 @@
 "use client";
 
-import { WagmiProvider, createConfig, http } from "wagmi";
+import { WagmiProvider, createConfig, http, fallback } from "wagmi";
 import { walletConnect, injected, coinbaseWallet } from "wagmi/connectors";
 import { farcasterMiniApp } from "@farcaster/miniapp-wagmi-connector";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -13,12 +13,12 @@ const projectId = process.env.NEXT_PUBLIC_WC_PROJECT_ID;
 const config = createConfig({
   chains: [base, celo, arbitrum, polygon, mainnet, bsc],
   transports: {
-    [base.id]: http(),
-    [celo.id]: http(),
-    [arbitrum.id]: http(),
-    [polygon.id]: http(),
-    [mainnet.id]: http(),
-    [bsc.id]: http(),
+    [base.id]: fallback([http("https://mainnet.base.org"), http("https://base-rpc.publicnode.com"), http()]),
+    [celo.id]: fallback([http("https://forno.celo.org"), http()]),
+    [arbitrum.id]: fallback([http("https://arb1.arbitrum.io/rpc"), http("https://arbitrum-one-rpc.publicnode.com"), http()]),
+    [polygon.id]: fallback([http("https://polygon-bor-rpc.publicnode.com"), http("https://polygon-rpc.com"), http()]),
+    [mainnet.id]: fallback([http("https://ethereum-rpc.publicnode.com"), http("https://cloudflare-eth.com"), http()]),
+    [bsc.id]: fallback([http("https://bsc-rpc.publicnode.com"), http("https://bsc-dataseed.binance.org"), http()]),
   },
   connectors: [
     farcasterMiniApp(),
